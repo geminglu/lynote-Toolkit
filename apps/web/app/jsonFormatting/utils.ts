@@ -1,4 +1,4 @@
-import type { JsonHistoryRecord } from "./type";
+import type { JsonHistoryRecord, JsonSortOrder } from "./type";
 
 type JsonTransformSuccess = {
   ok: true;
@@ -24,6 +24,13 @@ type ParsedJsonSource =
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "JSON 解析失败";
+}
+
+function createJsonTransformFailure(error: string): JsonTransformFailure {
+  return {
+    ok: false,
+    error,
+  };
 }
 
 /**
@@ -121,6 +128,59 @@ function parseJsonSource(value: string): ParsedJsonSource {
   }
 }
 
+function isSortableJsonRoot(value: unknown) {
+  return Array.isArray(value) || (typeof value === "object" && value !== null);
+}
+
+function compareJsonKeys(
+  firstKey: string,
+  secondKey: string,
+  order: Exclude<JsonSortOrder, "none">,
+) {
+  if (firstKey === secondKey) {
+    return 0;
+  }
+
+  if (order === "asc") {
+    return firstKey < secondKey ? -1 : 1;
+  }
+
+  return firstKey < secondKey ? 1 : -1;
+}
+
+/**
+ * 递归排序 JSON 对象的 key
+ * @param value - JSON 对象
+ * @param order - 排序顺序
+ * @returns 排序后的 JSON 对象
+ */
+function sortJsonKeysDeep(
+  value: unknown,
+  order: Exclude<JsonSortOrder, "none">,
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortJsonKeysDeep(item, order));
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([firstKey], [secondKey]) =>
+        compareJsonKeys(firstKey, secondKey, order),
+      )
+      .map(([key, nestedValue]) => [key, sortJsonKeysDeep(nestedValue, order)]),
+  );
+}
+
+/**
+ * 格式化 JSON 文本
+ * @param value - JSON 文本
+ * @param space - 空格数量
+ * @returns 格式化后的 JSON 文本
+ */
 export function formatJsonText(value: string, space = 2): JsonTransformResult {
   const result = parseJsonSource(value);
 
@@ -134,6 +194,11 @@ export function formatJsonText(value: string, space = 2): JsonTransformResult {
   };
 }
 
+/**
+ * 压缩 JSON 文本
+ * @param value - JSON 文本
+ * @returns 压缩后的 JSON 文本
+ */
 export function compressJsonText(value: string): JsonTransformResult {
   const result = parseJsonSource(value);
 
@@ -144,6 +209,38 @@ export function compressJsonText(value: string): JsonTransformResult {
   return {
     ok: true,
     value: JSON.stringify(result.parsedValue),
+  };
+}
+
+/**
+ * 排序 JSON 文本
+ * @param value - JSON 文本
+ * @param order - 排序顺序
+ * @param space - 空格数量
+ * @returns 排序后的 JSON 文本
+ */
+export function sortJsonText(
+  value: string,
+  order: Exclude<JsonSortOrder, "none">,
+  space = 2,
+): JsonTransformResult {
+  const result = parseJsonSource(value);
+
+  if (!result.ok) {
+    return result;
+  }
+
+  if (!isSortableJsonRoot(result.parsedValue)) {
+    return createJsonTransformFailure("当前内容不是对象或数组，无法排序 key");
+  }
+
+  return {
+    ok: true,
+    value: JSON.stringify(
+      sortJsonKeysDeep(result.parsedValue, order),
+      null,
+      space,
+    ),
   };
 }
 
@@ -186,6 +283,13 @@ export function getLeftEditorError(value: string) {
   return result.ok ? "" : result.error;
 }
 
+/**
+ * 创建历史记录标题
+ * @param leftValue - 左侧 JSON 文本
+ * @param rightValue - 右侧 JSON 文本
+ * @param timestamp - 时间戳
+ * @returns 历史记录标题
+ */
 export function createHistoryTitle(
   leftValue: string,
   rightValue: string,
@@ -209,12 +313,22 @@ export function createHistoryTitle(
   return `未命名 ${formatter.format(timestamp)}`;
 }
 
+/**
+ * 排序历史记录
+ * @param records - 历史记录
+ * @returns 排序后的历史记录
+ */
 export function sortHistoryRecords(records: JsonHistoryRecord[]) {
   return [...records].sort(
     (first, second) => second.updatedAt - first.updatedAt,
   );
 }
 
+/**
+ * 构建历史记录
+ * @param params - 历史记录参数
+ * @returns 历史记录
+ */
 export function buildHistoryRecord(
   params: Pick<
     JsonHistoryRecord,
@@ -231,10 +345,20 @@ export function buildHistoryRecord(
   };
 }
 
+/**
+ * 读取 JSON 文件
+ * @param file - 文件
+ * @returns 文件内容
+ */
 export async function readJsonFile(file: File) {
   return file.text();
 }
 
+/**
+ * 下载文本文件
+ * @param filename - 文件名
+ * @param content - 文件内容
+ */
 export function downloadTextFile(filename: string, content: string) {
   const blob = new Blob([content], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -247,6 +371,11 @@ export function downloadTextFile(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * 创建下载文件名
+ * @param side - 侧边
+ * @returns 下载文件名
+ */
 export function createDownloadName(side: "left" | "right") {
   const dateText = new Date().toISOString().replaceAll(":", "-");
   return `json-formatting-${side}-${dateText}.json`;

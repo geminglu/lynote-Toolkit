@@ -1,4 +1,7 @@
 import {
+  ArrowDownUp,
+  ArrowDownZA,
+  ArrowUpAZ,
   Copy,
   Download,
   ListChevronsDownUp,
@@ -13,7 +16,7 @@ import { Button } from "lynote-ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "lynote-ui/tooltip";
 import { useRef, type FC, type ReactNode } from "react";
 
-import type { EditorSide } from "../type";
+import type { EditorSide, JsonSortOrder } from "../type";
 
 export type PropsType = {
   side: EditorSide;
@@ -24,6 +27,8 @@ export type PropsType = {
   onCopy: () => Promise<void>;
   onCompress: () => void;
   onEscape: () => void;
+  onSort: () => void;
+  sortOrder: JsonSortOrder;
   onExpandAll: () => void;
   onCollapseAll: () => void;
 };
@@ -32,18 +37,21 @@ type ToolbarIconButtonProps = {
   label: string;
   onClick: () => void;
   children: ReactNode;
+  className?: string;
 };
 
 const ToolbarIconButton: FC<ToolbarIconButtonProps> = ({
   label,
   onClick,
   children,
+  className,
 }) => (
   <Tooltip>
     <TooltipTrigger
       render={
         <Button
           aria-label={label}
+          className={className}
           onClick={onClick}
           size="icon"
           variant="outline"
@@ -68,6 +76,8 @@ const EditorToolbar: FC<PropsType> = ({
   onCopy,
   onCompress,
   onEscape,
+  onSort,
+  sortOrder,
   onExpandAll,
   onCollapseAll,
 }) => {
@@ -77,6 +87,15 @@ const EditorToolbar: FC<PropsType> = ({
     <div className="flex flex-wrap gap-2">
       <ToolbarIconButton label="格式化" onClick={onFormat}>
         <PaintbrushVertical />
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label="排序"
+        onClick={onSort}
+        className={sortOrder === "none" ? "" : "bg-muted dark:bg-input/50"}
+      >
+        {sortOrder === "asc" && <ArrowUpAZ />}
+        {sortOrder === "desc" && <ArrowDownZA />}
+        {sortOrder === "none" && <ArrowDownUp />}
       </ToolbarIconButton>
       <ToolbarIconButton label="清除" onClick={onClear}>
         <Paintbrush />
@@ -115,7 +134,7 @@ const EditorToolbar: FC<PropsType> = ({
 
       {/**
        * 上传按钮只负责触发选择文件。
-       * 真正的导入逻辑统一交给页面状态层，并始终写入左侧主编辑区。
+       * 真正的导入逻辑统一交给页面状态层。
        */}
       <input
         ref={fileInputRef}
@@ -134,7 +153,7 @@ const EditorToolbar: FC<PropsType> = ({
         type="file"
       />
 
-      <div className="text-muted-foreground flex items-center text-xs">
+      <div className="flex items-center text-xs text-muted-foreground">
         {side === "left" ? "主输入区" : "结果编辑区"}
       </div>
     </div>

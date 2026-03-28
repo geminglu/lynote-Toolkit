@@ -9,6 +9,7 @@ import type { editor } from "monaco-editor";
 import dynamic from "next/dynamic";
 import { useMemo, useRef, type FC } from "react";
 
+import { useTheme } from "next-themes";
 import { useJsonFormattingContext } from "../hooks/useJsonFormattingContext";
 import type { EditorSide } from "../type";
 import EditorToolbar from "./editor-toolbar";
@@ -16,7 +17,7 @@ import EditorToolbar from "./editor-toolbar";
 const MonacoJsonEditor = dynamic(
   () => import("./monaco-json-editor-client").then((module) => module.default),
   {
-    loading: () => <div className="bg-muted/20 h-full min-h-[420px]" />,
+    loading: () => <div className="h-full min-h-[420px] bg-muted/20" />,
     ssr: false,
   },
 );
@@ -31,15 +32,18 @@ const EditorPanel: FC<PropsType> = ({ side, title, description }) => {
   const {
     leftValue,
     rightValue,
+    leftSortOrder,
+    rightSortOrder,
     updateLeftValue,
     updateRightValue,
     formatSide,
     clearSide,
-    uploadToLeft,
+    uploadSide,
     downloadSide,
     copySide,
     compressSide,
     escapeSide,
+    sortSide,
   } = useJsonFormattingContext();
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -48,6 +52,8 @@ const EditorPanel: FC<PropsType> = ({ side, title, description }) => {
     () => (side === "left" ? leftValue : rightValue),
     [leftValue, rightValue, side],
   );
+  const sortOrder = side === "left" ? leftSortOrder : rightSortOrder;
+  const { resolvedTheme } = useTheme();
 
   return (
     <Card className="">
@@ -76,20 +82,27 @@ const EditorPanel: FC<PropsType> = ({ side, title, description }) => {
           onEscape={() => {
             escapeSide(side);
           }}
+          onSort={() => {
+            sortSide(side);
+          }}
           onExpandAll={() => {
             void editorRef.current?.getAction("editor.unfoldAll")?.run();
           }}
           onFormat={() => {
             formatSide(side);
           }}
-          onUpload={uploadToLeft}
+          onUpload={async (file) => {
+            uploadSide(file, side);
+          }}
           side={side}
+          sortOrder={sortOrder}
         />
       </CardHeader>
 
       <CardContent className="min-h-0 flex-1 p-0">
         <div className="h-full min-h-[420px]">
           <MonacoJsonEditor
+            theme={resolvedTheme as "dark" | "light"}
             onChange={(nextValue) => {
               const safeValue = nextValue ?? "";
 

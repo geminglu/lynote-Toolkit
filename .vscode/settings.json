@@ -1,5 +1,5 @@
 {
-  "tailwindCSS.experimental.configFile": "apps/web/src/style/index.css",
+  "tailwindCSS.experimental.configFile": "apps/web/app/globals.css",
   "tailwindCSS.classFunctions": ["cva", "cx", "cn"],
   "tailwindCSS.experimental.classRegex": [
     ["([\"'`][^\"'`]*.*?[\"'`])", "[\"'`]([^\"'`]*).*?[\"'`]"]

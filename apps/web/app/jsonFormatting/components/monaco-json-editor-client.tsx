@@ -36,6 +36,7 @@ export type MonacoJsonEditorProps = {
   path: string;
   onChange: (value: string | undefined) => void;
   onMount: (editorInstance: editor.IStandaloneCodeEditor) => void;
+  theme?: "dark" | "light";
 };
 
 const editorOptions: editor.IStandaloneEditorConstructionOptions = {
@@ -62,6 +63,7 @@ export default function MonacoJsonEditor({
   path,
   onChange,
   onMount,
+  theme,
 }: MonacoJsonEditorProps) {
   return (
     <Editor
@@ -78,7 +80,7 @@ export default function MonacoJsonEditor({
       onMount={onMount}
       options={editorOptions}
       path={path}
-      theme="vs"
+      theme={theme === "dark" ? "vs-dark" : "light"}
       value={value}
     />
   );

@@ -1,4 +1,5 @@
 export type EditorSide = "left" | "right";
+export type JsonSortOrder = "none" | "asc" | "desc";
 
 export interface JsonHistoryRecord {
   id: string;

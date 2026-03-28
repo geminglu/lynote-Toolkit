@@ -1,7 +1,7 @@
 import { toast } from "lynote-ui/sonner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsonFormattingDb } from "../db";
-import type { EditorSide, JsonHistoryRecord } from "../type";
+import type { EditorSide, JsonHistoryRecord, JsonSortOrder } from "../type";
 import {
   buildHistoryRecord,
   compressJsonText,
@@ -12,21 +12,36 @@ import {
   getLeftEditorError,
   readJsonFile,
   sortHistoryRecords,
+  sortJsonText,
 } from "../utils";
 type WorkspaceState = {
   activeRecordId: string | null;
   leftValue: string;
   rightValue: string;
   leftError: string;
+  leftSortOrder: JsonSortOrder;
+  rightSortOrder: JsonSortOrder;
 };
 const INITIAL_WORKSPACE_STATE: WorkspaceState = {
   activeRecordId: null,
   leftValue: "",
   rightValue: "",
   leftError: "",
+  leftSortOrder: "none",
+  rightSortOrder: "none",
 };
 
 const PERSIST_DELAY = 400;
+
+function getNextSortOrder(
+  currentOrder: JsonSortOrder,
+): Exclude<JsonSortOrder, "none"> {
+  if (currentOrder === "none" || currentOrder === "desc") {
+    return "asc";
+  }
+
+  return "desc";
+}
 
 function useJsonFormatting() {
   const [records, setRecords] = useState<JsonHistoryRecord[]>([]);
@@ -146,6 +161,8 @@ function useJsonFormatting() {
         leftValue: nextLeftValue,
         rightValue: nextRightValue,
         leftError: nextError,
+        leftSortOrder: "none",
+        rightSortOrder: "none",
       });
       if (nextLeftValue || nextRightValue || currentWorkspace.activeRecordId) {
         persistValues(nextLeftValue, nextRightValue);
@@ -159,6 +176,7 @@ function useJsonFormatting() {
       setWorkspace({
         ...currentWorkspace,
         rightValue: nextRightValue,
+        rightSortOrder: "none",
       });
       if (
         currentWorkspace.leftValue ||
@@ -186,6 +204,8 @@ function useJsonFormatting() {
         leftValue: record.leftValue,
         rightValue: record.rightValue,
         leftError: getLeftEditorError(record.leftValue),
+        leftSortOrder: "none",
+        rightSortOrder: "none",
       });
     },
     [flushPendingPersist],
@@ -206,6 +226,8 @@ function useJsonFormatting() {
             leftValue: fallbackRecord.leftValue,
             rightValue: fallbackRecord.rightValue,
             leftError: getLeftEditorError(fallbackRecord.leftValue),
+            leftSortOrder: "none",
+            rightSortOrder: "none",
           });
         } else {
           setWorkspace(INITIAL_WORKSPACE_STATE);
@@ -226,6 +248,10 @@ function useJsonFormatting() {
     },
     [commitRightValue],
   );
+
+  /**
+   * 格式化
+   */
   const formatSide = useCallback(
     (side: EditorSide) => {
       const currentWorkspace = workspaceRef.current;
@@ -253,6 +279,8 @@ function useJsonFormatting() {
           leftValue: result.value,
           rightValue: result.value,
           leftError: "",
+          leftSortOrder: "none",
+          rightSortOrder: "none",
         });
         persistValues(result.value, result.value);
         return;
@@ -260,11 +288,16 @@ function useJsonFormatting() {
       setWorkspace({
         ...currentWorkspace,
         rightValue: result.value,
+        rightSortOrder: "none",
       });
       persistValues(currentWorkspace.leftValue, result.value);
     },
     [persistValues],
   );
+
+  /**
+   * 压缩
+   */
   const compressSide = useCallback(
     (side: EditorSide) => {
       const currentWorkspace = workspaceRef.current;
@@ -294,6 +327,10 @@ function useJsonFormatting() {
     },
     [commitLeftValue, commitRightValue],
   );
+
+  /**
+   * 转义
+   */
   const escapeSide = useCallback(
     (side: EditorSide) => {
       const currentWorkspace = workspaceRef.current;
@@ -310,6 +347,10 @@ function useJsonFormatting() {
     },
     [commitLeftValue, commitRightValue],
   );
+
+  /**
+   * 清除
+   */
   const clearSide = useCallback(
     (side: EditorSide) => {
       if (side === "left") {
@@ -320,6 +361,60 @@ function useJsonFormatting() {
     },
     [commitLeftValue, commitRightValue],
   );
+
+  /**
+   * 排序
+   */
+  const sortSide = useCallback(
+    (side: EditorSide) => {
+      const currentWorkspace = workspaceRef.current;
+      const sourceValue =
+        side === "left"
+          ? currentWorkspace.leftValue
+          : currentWorkspace.rightValue;
+
+      if (!sourceValue.trim()) {
+        return;
+      }
+
+      const currentOrder =
+        side === "left"
+          ? currentWorkspace.leftSortOrder
+          : currentWorkspace.rightSortOrder;
+      const nextOrder = getNextSortOrder(currentOrder);
+      const result = sortJsonText(sourceValue, nextOrder, 2);
+
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      if (side === "left") {
+        setWorkspace({
+          activeRecordId: currentWorkspace.activeRecordId,
+          leftValue: result.value,
+          rightValue: result.value,
+          leftError: "",
+          leftSortOrder: nextOrder,
+          rightSortOrder: nextOrder,
+        });
+        persistValues(result.value, result.value);
+        return;
+      }
+
+      setWorkspace({
+        ...currentWorkspace,
+        rightValue: result.value,
+        rightSortOrder: nextOrder,
+      });
+      persistValues(currentWorkspace.leftValue, result.value);
+    },
+    [persistValues],
+  );
+
+  /**
+   * 复制
+   */
   const copySide = useCallback(async (side: EditorSide) => {
     const currentWorkspace = workspaceRef.current;
     const sourceValue =
@@ -329,6 +424,10 @@ function useJsonFormatting() {
     await navigator.clipboard.writeText(sourceValue);
     toast.success(side === "left" ? "左侧内容已复制" : "右侧内容已复制");
   }, []);
+
+  /**
+   * 下载
+   */
   const downloadSide = useCallback((side: EditorSide) => {
     const currentWorkspace = workspaceRef.current;
     const sourceValue =
@@ -338,17 +437,25 @@ function useJsonFormatting() {
     downloadTextFile(createDownloadName(side), sourceValue);
     toast.success(side === "left" ? "已下载左侧内容" : "已下载右侧内容");
   }, []);
-  const uploadToLeft = useCallback(
-    async (file: File) => {
+
+  /**
+   * 上传
+   */
+  const uploadSide = useCallback(
+    async (file: File, side: EditorSide) => {
       try {
         const text = await readJsonFile(file);
-        commitLeftValue(text);
-        toast.success("JSON 文件已导入左侧编辑区");
+        if (side === "left") {
+          commitLeftValue(text);
+        } else {
+          commitRightValue(text);
+        }
+        toast.success("JSON 文件已导入");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "文件读取失败");
       }
     },
-    [commitLeftValue],
+    [commitLeftValue, commitRightValue],
   );
   const value = useMemo(
     () => ({
@@ -358,6 +465,8 @@ function useJsonFormatting() {
       leftValue: workspace.leftValue,
       rightValue: workspace.rightValue,
       leftError: workspace.leftError,
+      leftSortOrder: workspace.leftSortOrder,
+      rightSortOrder: workspace.rightSortOrder,
       createDraft,
       selectRecord,
       deleteRecord,
@@ -366,10 +475,11 @@ function useJsonFormatting() {
       formatSide,
       compressSide,
       escapeSide,
+      sortSide,
       clearSide,
       copySide,
       downloadSide,
-      uploadToLeft,
+      uploadSide,
     }),
     [
       clearSide,
@@ -379,16 +489,19 @@ function useJsonFormatting() {
       deleteRecord,
       downloadSide,
       escapeSide,
+      sortSide,
       formatSide,
       loading,
       records,
       selectRecord,
       updateLeftValue,
       updateRightValue,
-      uploadToLeft,
+      uploadSide,
       workspace.activeRecordId,
       workspace.leftError,
+      workspace.leftSortOrder,
       workspace.leftValue,
+      workspace.rightSortOrder,
       workspace.rightValue,
     ],
   );
