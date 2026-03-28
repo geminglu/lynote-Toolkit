@@ -1,0 +1,8 @@
+{
+  "tailwindCSS.experimental.configFile": "apps/web/src/style/index.css",
+  "tailwindCSS.classFunctions": ["cva", "cx", "cn"],
+  "tailwindCSS.experimental.classRegex": [
+    ["([\"'`][^\"'`]*.*?[\"'`])", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

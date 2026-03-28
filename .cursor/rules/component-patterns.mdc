@@ -1,0 +1,234 @@
+---
+description: 组件开发模式和最佳实践
+globs: apps/**/*.tsx,apps/**/*.ts
+alwaysApply: false
+---
+# 组件开发模式
+
+## 组件结构模式
+
+### 标准组件结构
+
+每个组件应包含以下文件：
+
+- `ComponentName.tsx` - 主组件实现
+- `type.ts` - 类型定义（可选，复杂组件需要）
+- `index.ts` - 导出文件（可选）
+- `hook.ts` - 自定义 hooks（可选）
+- `components/` - 子组件目录（可选）
+
+### React 组件实现模式
+
+#### 1. 基础组件结构
+
+```typescript
+import { FC } from "react";
+import { cn } from "@lynote/utils";
+import { PropsType } from "./type";
+
+const Component: FC<PropsType> = ({
+  className,
+  variant,
+  size,
+  children,
+  ...restProps
+}) => {
+  return (
+    <div
+      {...restProps}
+      className={cn(
+        "base-styles",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+};
+
+export default Component;
+```
+
+#### 2. 带 ref 转发的组件
+
+```typescript
+import { forwardRef } from "react";
+
+const Component = forwardRef<HTMLInputElement, PropsType>(
+  ({ className, ...props }, ref) => {
+    return (
+      <input
+        ref={ref}
+        {...props}
+        className={cn("base-styles", className)}
+      />
+    );
+  }
+);
+```
+
+#### 3. 带状态管理的组件
+
+```typescript
+const Component: FC<PropsType> = (props) => {
+  const { state, handlers } = useComponent(props);
+
+  return (
+    <div className={cn("base-styles", props.className)}>
+      {/* 组件内容 */}
+    </div>
+  );
+};
+```
+
+#### 4. 业务组件共享状态模式
+
+如果业务组件存在跨层级状态共享需求，优先使用 `useContext`，并通过自定义 hook 暴露上下文值，不要在业务组件中直接调用 `Context.Consumer` 或直接导出原始 context 值。
+
+推荐结构：
+
+- `hooks/useXxx.ts` - 自定义 hooks
+- `context.ts` - context 与 Provider 定义
+- `hook.ts` - `useXxxContext` 等上下文访问 hooks
+- `ComponentName.tsx` - 组件主体
+- `components/` - 消费上下文的子组件
+
+```typescript
+// hooks/useXxx.ts
+import { useState } from "react";
+
+export const useXxx = () => {
+  const [state, setState] = useState(0);
+
+  return {
+    state,
+    setState,
+  };
+};
+
+export type XxxContextValue = ReturnType<typeof useXxx>;
+```
+
+```typescript
+// context.tsx
+import { createContext, type FC, type PropsWithChildren } from "react";
+import { useXxx } from "./hooks/useXxx";
+import type { XxxContextValue } from "./hooks/useXxx";
+
+export const ComponentContext = createContext<XxxContextValue | null>(null);
+
+export const ComponentProvider: FC<PropsWithChildren> = ({ children }) => {
+  const value = useXxx();
+
+  return (
+    <ComponentContext.Provider value={value}>
+      {children}
+    </ComponentContext.Provider>
+  );
+};
+```
+
+```typescript
+// hooks/useXxxContext.ts
+import { useContext } from "react";
+import { ComponentContext } from "./context";
+
+export const useComponentContext = () => {
+  const context = useContext(ComponentContext);
+
+  if (!context) {
+    throw new Error("useComponentContext must be used within ComponentProvider");
+  }
+
+  return context;
+};
+```
+
+```typescript
+// ComponentName.tsx
+const Component: FC<PropsType> = ({ children }) => {
+  return <ComponentProvider>{children}</ComponentProvider>;
+};
+```
+
+### Context 访问 Hook
+
+当组件通过 `useContext` 共享业务状态时，必须封装为 `useXxxContext` 形式的 hook 再对外使用。
+
+- 不要在组件内部重复写 `useContext(SomeContext)`
+- 不要直接导出未经校验的 context 值
+- 在 hook 内统一处理空 context 校验
+- Provider 负责组织共享状态，hook 负责消费状态
+
+```typescript
+export const useBusinessContext = () => {
+  const context = useContext(BusinessContext);
+
+  if (!context) {
+    throw new Error("useBusinessContext must be used within BusinessProvider");
+  }
+
+  return context;
+};
+```
+
+## 样式系统集成
+
+### 使用 Tailwind CSS
+
+- 使用 Tailwind 工具类
+- 使用 `cn()` 工具函数合并类名（如果存在）
+- 支持条件样式和变体
+
+```typescript
+import { cn } from "@/utils"; // 如果存在
+
+className={cn(
+  "base-styles",
+  variant === "primary" && "bg-blue-500",
+  size === "lg" && "text-lg",
+  className
+)}
+```
+
+### 数据属性模式
+
+使用 `data-*` 属性进行状态标记：
+
+```typescript
+<div
+  data-slot="input"
+  data-focus={isFocus}
+  data-disabled={disabled}
+  className={cn("base-styles")}
+>
+```
+
+## 自定义 Hooks 模式
+
+### 状态管理 Hook
+
+```typescript
+export const useComponent = (props: PropsType) => {
+  const [state, setState] = useState(initialState);
+
+  const handlers = {
+    handleClick: (e: React.MouseEvent) => {
+      // 处理逻辑
+    },
+  };
+
+  return { state, handlers };
+};
+```
+
+## 组件导出模式
+
+### 标准导出结构
+
+```typescript
+// index.ts
+export { default } from "./ComponentName";
+export type { PropsType } from "./type";
+export * from "./type";
+```

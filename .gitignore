@@ -1,0 +1,35 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+tsconfig.app.tsbuildinfo
+tsconfig.node.tsbuildinfo
+
+# Local env files
+.env
+.env.*
+
+# Testing
+coverage
+
+# Turbo
+.turbo
+
+# Vercel
+.vercel
+
+# Build Outputs
+.next/
+out/
+build
+dist
+
+
+# Debug
+npm-debug.log*
+
+# Misc
+.DS_Store
+*.pem
