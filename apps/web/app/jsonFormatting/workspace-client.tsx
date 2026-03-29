@@ -41,7 +41,7 @@ function JsonFormattingWorkspaceContent({
           <div
             className={cn(
               "grid h-full min-h-0 flex-1 gap-4",
-              "grid-cols-1 xl:grid-cols-2",
+              "grid-cols-1 lg:grid-cols-2",
             )}
           >
             <EditorPanel
