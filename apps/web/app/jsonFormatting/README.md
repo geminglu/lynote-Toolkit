@@ -17,7 +17,7 @@
 3. 外层带引号的 JSON 文本
 
 ```text
-'{"appId":"wx6b3b6451b8e1fc15","targetHost":"https://xxx.sss.com.cn"}'
+'{"name":"zs","targetHost":"https://xxx.sss.com.cn"}'
 ```
 
 4. 普通字符串
