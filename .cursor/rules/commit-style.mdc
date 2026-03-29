@@ -1,0 +1,22 @@
+---
+description: Git 提交信息规范
+alwaysApply: true
+---
+
+# Git 提交规范
+
+- 使用 Conventional Commits 格式：`type(scope): summary`
+- `type` 仅使用：`feat`、`fix`、`refactor`、`docs`、`test`、`chore`、`style`、`perf`
+- 根据改动目的选择 `type`，不要仅根据修改的文件类型选择
+- 有明确模块时填写 `scope`，如 `web`、`keyGenerator`；不明确时可省略
+- `summary` 聚焦本次改动最重要的结果或目的，避免流水账式描述
+- `summary` 可使用中文或英文，但应尽量与当前模块最近提交的语言风格保持一致
+- `summary` 保持简洁，不加句号，避免 `update code`、`fix bug` 这类模糊表述
+- 一次提交包含多类改动时，优先描述最核心的用户价值变化
+
+## 示例
+
+- `feat(keyGenerator): 实现具有多种密钥类型和配置的密钥生成工具`
+- `feat(jsonFormatting): 为 Monaco JSON 编辑器添加滚动条配置`
+- `fix(web): 修复空输入时的校验问题`
+- `refactor(web): 简化密钥生成状态流程`

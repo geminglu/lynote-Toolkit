@@ -108,31 +108,19 @@ import { PropsType } from "./type";
 
 ## 注释规范
 
-- 复杂逻辑必须添加注释
-- 使用 JSDoc 格式注释复杂属性
-- 组件 Props 使用 TypeScript 类型定义，无需额外注释
-- 每个React组件都要写明组件介绍
-- 中文注释说明功能特性
-- 使用 `/**` 多行注释格式
+- 注释用于解释设计意图、边界条件和业务约束，不要复述代码表面行为
+- 以下场景必须补充中文注释：边界条件处理、安全限制、兼容性分支、非直观的数据转换、依赖执行顺序的逻辑、临时 workaround
+- 以下场景不要添加注释：简单变量赋值、直接的 JSX 渲染、命名已经足够清晰的条件分支
+- 导出的复杂函数、hooks、工具方法可以使用 JSDoc；普通组件 Props 和显而易见的局部变量无需逐项写说明
+- 注释保持简短，优先说明“为什么这样做”或“不这样做会有什么问题”
+- 只有在组件职责不直观、存在副作用、状态流转复杂时，才为组件或 hook 添加顶部说明
 
 ```typescript
 /**
- * 按钮组件
- * @param loading - 是否显示加载状态
- * @param size - 按钮尺寸
- * @param variant - 按钮变体
+ * 在保留按钮原有交互语义的前提下，统一处理加载态和尺寸变体。
  */
 export type PropsType = {
-  /**
-   * 是否显示加载状态
-   * 当为 true 时，按钮会显示加载图标并禁用点击
-   */
   loading?: boolean;
-
-  /**
-   * 按钮尺寸
-   * @default "md"
-   */
   size?: "sm" | "md" | "lg";
   className: string;
   children: ReactNode
@@ -141,7 +129,7 @@ export type PropsType = {
 
 ```tsx
 /**
- * 按钮组件
+ * 这里保留原生 button 行为，只额外封装样式和变体映射。
  */
 function Button({
   className,
