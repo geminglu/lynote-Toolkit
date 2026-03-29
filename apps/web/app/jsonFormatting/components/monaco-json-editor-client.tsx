@@ -56,6 +56,9 @@ const editorOptions: editor.IStandaloneEditorConstructionOptions = {
   scrollBeyondLastLine: false,
   tabSize: 2,
   wordWrap: "on",
+  scrollbar: {
+    alwaysConsumeMouseWheel: false,
+  },
 };
 
 export default function MonacoJsonEditor({
