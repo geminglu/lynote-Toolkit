@@ -1,6 +1,7 @@
 import { Badge } from "lynote-ui/badge";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -22,6 +23,13 @@ const TOOL_ENTRIES = [
       "在浏览器本地生成 API Key、JWT Secret、AES-256、HMAC-SHA256 与 RSA Key Pair。",
     badge: "新工具",
   },
+  {
+    href: "/hashGenerator",
+    title: "哈希生成工具",
+    description:
+      "在浏览器本地为文本和单文件生成 Hash 或 HMAC，支持 SHA-2、MD5 与 SHA-1 兼容算法。",
+    badge: "新工具",
+  },
 ];
 
 export default async function Home() {
@@ -34,21 +42,21 @@ export default async function Home() {
             开发者工具集合
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-            当前提供 JSON
-            格式化与密钥生成两类工具，均以浏览器交互为主，适合日常开发和联调场景。
+            当前提供 JSON 格式化、密钥生成与哈希/HMAC
+            生成三类工具，均以浏览器交互为主， 适合日常开发和联调场景。
           </p>
         </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
         {TOOL_ENTRIES.map((entry) => (
-          <Link href={entry.href} key={entry.href}>
+          <Link href={entry.href} key={entry.href} target="_blank">
             <Card className="h-full transition-colors hover:bg-muted/40">
               <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle>{entry.title}</CardTitle>
+                <CardTitle>{entry.title}</CardTitle>
+                <CardAction>
                   <Badge variant="secondary">{entry.badge}</Badge>
-                </div>
+                </CardAction>
                 <CardDescription>{entry.description}</CardDescription>
               </CardHeader>
               <CardContent className="text-sm font-medium text-primary">
