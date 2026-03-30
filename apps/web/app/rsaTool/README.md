@@ -1,5 +1,3 @@
-# RSA 工具箱
-
 这个工具用于在当前浏览器页面中完成常见 `RSA` 联调操作，适合前后端协作、第三方平台接入、自测签名验签和密钥格式排查。
 
 ## 首版支持
@@ -179,3 +177,24 @@ console.log(sign.sign(privateKeyPem, "base64"));
 ```bash
 openssl dgst -sha256 -verify public.pem -signature sign.bin message.txt
 ```
+
+## 常见问题
+
+### 为什么 RSA 不能直接处理很长的文本
+
+因为 `RSA` 的可处理明文长度会受到密钥位数、填充方式和摘要算法限制。真实项目里更常见的做法是用 `RSA` 保护对称密钥，再用 `AES` 处理真正的大数据内容。
+
+### `RSA-PSS` 和 `RSASSA-PKCS1-v1_5` 应该怎么选
+
+- 新系统优先考虑 `RSA-PSS`
+- 旧平台、既有协议或兼容性优先场景更常见 `RSASSA-PKCS1-v1_5`
+
+### 密钥检查适合什么时候使用
+
+当你拿到一段不确定来源的 `PEM` 或 `JWK`，需要快速判断它是公钥还是私钥、位数是多少、当前浏览器能否识别时，密钥检查模式会很有帮助。
+
+## 相关工具
+
+- 如果你还没有生成 `RSA Key Pair`，可以先使用[密钥在线生成工具](/key-generator)。
+- 如果你需要先整理待加密、待签名的 JSON 文本，可以继续使用[JSON 在线格式化工具](/json-formatting)。
+- 如果你在对接签名回调或摘要校验流程，也可以继续使用[哈希与 HMAC 在线生成工具](/hash-generator)。
