@@ -30,6 +30,13 @@ const TOOL_ENTRIES = [
       "在浏览器本地为文本和单文件生成 Hash 或 HMAC，支持 SHA-2、MD5 与 SHA-1 兼容算法。",
     badge: "新工具",
   },
+  {
+    href: "/rsaTool",
+    title: "RSA 工具箱",
+    description:
+      "在浏览器本地完成 RSA 加密、解密、签名、验签与密钥检查，适合联调和接入测试。",
+    badge: "新工具",
+  },
 ];
 
 export default async function Home() {
@@ -42,8 +49,8 @@ export default async function Home() {
             开发者工具集合
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-            当前提供 JSON 格式化、密钥生成与哈希/HMAC
-            生成三类工具，均以浏览器交互为主， 适合日常开发和联调场景。
+            当前提供 JSON 格式化、密钥生成、哈希/HMAC 与 RSA
+            工具四类能力，均以浏览器本地交互为主，适合日常开发和联调场景。
           </p>
         </div>
       </section>
