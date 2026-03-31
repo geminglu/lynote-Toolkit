@@ -64,7 +64,7 @@ const HistorySidebarContent: FC = () => {
       </div>
 
       <div className="px-3 pt-3 pb-2">
-        <div className="text-muted-foreground text-xs">
+        <div className="text-xs text-muted-foreground">
           {collapsed ? `记 ${records.length}` : `历史记录 ${records.length} 条`}
         </div>
       </div>
@@ -85,7 +85,7 @@ const HistorySidebarContent: FC = () => {
             return (
               <div
                 className={cn(
-                  "bg-background hover:bg-accent/50 flex items-start gap-2 rounded-lg border p-2 transition-colors",
+                  "flex items-start gap-2 rounded-lg border bg-background p-2 transition-colors hover:bg-accent/50",
                   active && "border-primary/40 bg-accent/40",
                   collapsed && "justify-center px-1",
                 )}
@@ -110,7 +110,7 @@ const HistorySidebarContent: FC = () => {
                       <div className="truncate text-sm font-medium">
                         {record.title}
                       </div>
-                      <div className="text-muted-foreground text-xs">
+                      <div className="text-xs text-muted-foreground">
                         {formatUpdateTime(record.updatedAt)}
                       </div>
                     </div>

@@ -5,7 +5,7 @@ import {
   createToolMetadata,
   getToolRouteConfig,
 } from "@/lib/seo";
-import HashGeneratorWorkspaceClient from "../hashGenerator/workspace-client";
+import HashGeneratorWorkspaceClient from "./workspace-client";
 
 const routeConfig = getToolRouteConfig("/hash-generator");
 

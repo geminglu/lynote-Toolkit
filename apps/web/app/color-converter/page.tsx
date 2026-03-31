@@ -5,19 +5,20 @@ import {
   createToolMetadata,
   getToolRouteConfig,
 } from "@/lib/seo";
-import KeyGeneratorWorkspaceClient from "./workspace-client";
 
-const routeConfig = getToolRouteConfig("/key-generator");
+import ColorConverterWorkspaceClient from "./workspace-client";
+
+const routeConfig = getToolRouteConfig("/color-converter");
 
 export const metadata = createToolMetadata(routeConfig);
 
-export default async function KeyGeneratorPage() {
+export default async function ColorConverterPage() {
   const markdownContent = await readContentMarkdownFile(routeConfig.readmePath);
 
   return (
     <>
       <JsonLd data={createSoftwareApplicationJsonLd(routeConfig)} />
-      <KeyGeneratorWorkspaceClient markdownContent={markdownContent} />
+      <ColorConverterWorkspaceClient markdownContent={markdownContent} />
     </>
   );
 }

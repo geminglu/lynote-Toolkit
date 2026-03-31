@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Lynote Toolkit";
 export const SITE_TITLE = "Lynote Toolkit 开发者在线工具箱";
 export const SITE_DESCRIPTION =
-  "面向开发者的浏览器本地工具站，提供 JSON 格式化、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
+  "面向开发者的浏览器本地工具站，提供 JSON 格式化、颜色转换、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
 export const SITE_BASE_PATH =
   process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "";
 export const SITE_ORIGIN =
@@ -22,7 +22,7 @@ export type ToolRouteConfig = {
 export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
   {
     route: "/json-formatting",
-    readmePath: "/app/jsonFormatting/README.md",
+    readmePath: "/app/json-formatting/README.md",
     title: "JSON 在线格式化工具",
     shortTitle: "JSON 格式化",
     description:
@@ -36,8 +36,23 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
     ],
   },
   {
+    route: "/color-converter",
+    readmePath: "/app/color-converter/README.md",
+    title: "CSS 颜色转换工具",
+    shortTitle: "颜色转换工具",
+    description:
+      "支持 HEXA、RGBA、HSLA、HWB、Lab、LCH 和 OKLCH 在线转换与联动调色，适合主题调试和设计协作。",
+    keywords: [
+      "CSS 颜色转换",
+      "RGBA 转 OKLCH",
+      "Lab 在线转换",
+      "LCH 在线转换",
+      "HSL 在线调色",
+    ],
+  },
+  {
     route: "/key-generator",
-    readmePath: "/app/keyGenerator/README.md",
+    readmePath: "/app/key-generator/README.md",
     title: "密钥在线生成工具",
     shortTitle: "密钥生成工具",
     description:
@@ -52,7 +67,7 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
   },
   {
     route: "/hash-generator",
-    readmePath: "/app/hashGenerator/README.md",
+    readmePath: "/app/hash-generator/README.md",
     title: "哈希与 HMAC 在线生成工具",
     shortTitle: "哈希生成工具",
     description:
@@ -67,7 +82,7 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
   },
   {
     route: "/rsa-tool",
-    readmePath: "/app/rsaTool/README.md",
+    readmePath: "/app/rsa-tool/README.md",
     title: "RSA 在线工具箱",
     shortTitle: "RSA 工具箱",
     description:

@@ -5,7 +5,7 @@ import {
   createToolMetadata,
   getToolRouteConfig,
 } from "@/lib/seo";
-import JsonFormattingWorkspaceClient from "../jsonFormatting/workspace-client";
+import JsonFormattingWorkspaceClient from "./workspace-client";
 
 const routeConfig = getToolRouteConfig("/json-formatting");
 

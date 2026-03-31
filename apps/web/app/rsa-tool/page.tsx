@@ -5,7 +5,7 @@ import {
   createToolMetadata,
   getToolRouteConfig,
 } from "@/lib/seo";
-import RsaToolWorkspaceClient from "../rsaTool/workspace-client";
+import RsaToolWorkspaceClient from "./workspace-client";
 
 const routeConfig = getToolRouteConfig("/rsa-tool");
 

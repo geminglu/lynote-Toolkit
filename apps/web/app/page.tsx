@@ -19,11 +19,12 @@ import Link from "next/link";
 export const metadata: Metadata = createPageMetadata({
   absoluteTitle: "Lynote Toolkit 开发者在线工具箱",
   description:
-    "提供 JSON 格式化、密钥生成、哈希/HMAC、RSA 联调等浏览器本地在线工具，适合开发调试和接口联调。",
+    "提供 JSON 格式化、颜色转换、密钥生成、哈希/HMAC、RSA 联调等浏览器本地在线工具，适合开发调试和接口联调。",
   pathname: "/",
   keywords: [
     "开发者在线工具箱",
     "JSON 在线格式化",
+    "CSS 颜色转换",
     "RSA 在线工具",
     "SHA256 在线计算",
     "密钥在线生成",
@@ -32,6 +33,7 @@ export const metadata: Metadata = createPageMetadata({
 
 const SCENES = [
   "接口联调时快速格式化和校验 JSON 请求体",
+  "在 RGBA、HSL、HWB、Lab、LCH、OKLCH 之间同步转换颜色",
   "生成 JWT Secret、AES-256、RSA Key Pair 等测试密钥",
   "计算 SHA-256、MD5、HMAC 等摘要用于完整性校验",
   "在浏览器本地完成 RSA 加解密、签名和验签",
@@ -50,8 +52,9 @@ export default function Home() {
               开发者在线工具箱
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-              Lynote Toolkit 提供 JSON 在线格式化、密钥生成、哈希与 HMAC
-              计算、RSA 联调等浏览器本地工具，适合接口调试、Webhook
+              Lynote Toolkit 提供 JSON 在线格式化、颜色转换、密钥生成、哈希与
+              HMAC 计算、RSA
+              联调等浏览器本地工具，适合接口调试、主题调色、Webhook
               验签、配置排查和开发测试。
             </p>
           </div>
