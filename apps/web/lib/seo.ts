@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Lynote Toolkit";
 export const SITE_TITLE = "Lynote Toolkit 开发者在线工具箱";
 export const SITE_DESCRIPTION =
-  "面向开发者的浏览器本地工具站，提供 JSON 格式化、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
+  "面向开发者的浏览器本地工具站，提供 JSON 格式化、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
 export const SITE_BASE_PATH =
   process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "";
 export const SITE_ORIGIN =
@@ -48,6 +48,22 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "Lab 在线转换",
       "LCH 在线转换",
       "HSL 在线调色",
+    ],
+  },
+  {
+    route: "/url-encoder",
+    readmePath: "/app/url-encoder/README.md",
+    title: "URL 编码与解析工具",
+    shortTitle: "URL 编解码",
+    description:
+      "支持完整 URL、参数值和 Query String 的编码、解码与结构解析，适合回调地址排查和跳转参数检查。",
+    keywords: [
+      "URL 编码",
+      "URL 解码",
+      "URL Encode",
+      "URL Decode",
+      "Query 参数解析",
+      "encodeURIComponent",
     ],
   },
   {
