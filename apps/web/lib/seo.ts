@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Lynote Toolkit";
 export const SITE_TITLE = "Lynote Toolkit 开发者在线工具箱";
 export const SITE_DESCRIPTION =
-  "面向开发者的浏览器本地工具站，提供 JSON 格式化、颜色转换、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
+  "面向开发者的浏览器本地工具站，提供 JSON 格式化、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
 export const SITE_BASE_PATH =
   process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "";
 export const SITE_ORIGIN =
@@ -63,6 +63,22 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "API Key 生成",
       "AES Key 生成",
       "RSA Key Pair 生成",
+    ],
+  },
+  {
+    route: "/jwt-debugger",
+    readmePath: "/app/jwt-debugger/README.md",
+    title: "JWT 在线解析与验签工具",
+    shortTitle: "JWT 调试工具",
+    description:
+      "支持 JWT Header / Payload 解析、exp / nbf / iat 校验，以及基于 Secret、PEM Public Key 或 JWK 的本地验签。",
+    keywords: [
+      "JWT 解析",
+      "JWT 验签",
+      "JWT Decoder",
+      "JWT Verify",
+      "HS256",
+      "RS256",
     ],
   },
   {
