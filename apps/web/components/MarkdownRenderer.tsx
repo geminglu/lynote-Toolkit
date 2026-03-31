@@ -1,3 +1,4 @@
+import { withBasePath } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import type { Components } from "react-markdown";
@@ -8,6 +9,14 @@ export type MarkdownRendererProps = {
   content: string;
   className?: string;
 };
+
+function resolveMarkdownHref(href?: string) {
+  if (!href || !href.startsWith("/") || href.startsWith("//")) {
+    return href;
+  }
+
+  return withBasePath(href);
+}
 
 const markdownComponents: Components = {
   h1: ({ className, ...props }) => (
@@ -52,12 +61,13 @@ const markdownComponents: Components = {
       {...props}
     />
   ),
-  a: ({ className, ...props }) => (
+  a: ({ className, href, ...props }) => (
     <a
       className={cn(
-        "text-primary font-medium underline underline-offset-4",
+        "font-medium text-primary underline underline-offset-4",
         className,
       )}
+      href={resolveMarkdownHref(href)}
       {...props}
     />
   ),
@@ -80,7 +90,7 @@ const markdownComponents: Components = {
     />
   ),
   hr: ({ className, ...props }) => (
-    <hr className={cn("border-border my-8", className)} {...props} />
+    <hr className={cn("my-8 border-border", className)} {...props} />
   ),
   code: ({ className, children, ...props }) => {
     const isInlineCode = !className;
@@ -88,7 +98,7 @@ const markdownComponents: Components = {
     if (isInlineCode) {
       return (
         <code
-          className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold"
+          className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold"
           {...props}
         >
           {children}
@@ -105,7 +115,7 @@ const markdownComponents: Components = {
   pre: ({ className, ...props }) => (
     <pre
       className={cn(
-        "bg-muted mt-6 mb-4 overflow-x-auto rounded-lg border px-4 py-4",
+        "mt-6 mb-4 overflow-x-auto rounded-lg border bg-muted px-4 py-4",
         className,
       )}
       {...props}
@@ -129,7 +139,7 @@ const markdownComponents: Components = {
   ),
   tr: ({ className, ...props }) => (
     <tr
-      className={cn("even:bg-muted m-0 border-t p-0", className)}
+      className={cn("m-0 border-t p-0 even:bg-muted", className)}
       {...props}
     />
   ),
