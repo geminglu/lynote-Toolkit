@@ -21,6 +21,21 @@ export type ToolRouteConfig = {
 
 export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
   {
+    route: "/data-converter",
+    readmePath: "/app/data-converter/README.md",
+    title: "数据转换与代码生成工具",
+    shortTitle: "数据转换工具",
+    description:
+      "支持 JSON、YAML、XML 互转，并生成 TypeScript、Zod、Java、Go、C 模型代码，适合接口联调、配置迁移和数据结构整理。",
+    keywords: [
+      "JSON YAML XML 转换",
+      "TypeScript 类型生成",
+      "Zod 在线生成",
+      "Java Go C 模型生成",
+      "数据格式转换工具",
+    ],
+  },
+  {
     route: "/json-formatting",
     readmePath: "/app/json-formatting/README.md",
     title: "JSON 在线格式化工具",
