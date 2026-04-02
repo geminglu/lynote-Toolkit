@@ -38,7 +38,7 @@ const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
 
       <main
         className={cn(
-          "flex min-w-0 flex-1 flex-col overflow-y-auto",
+          "mx-auto flex max-w-[1400px] min-w-0 flex-1 flex-col overflow-y-auto",
           mainClassName,
         )}
       >
@@ -55,7 +55,7 @@ const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
               <h1 className="text-lg font-semibold md:text-2xl">
                 {header.title}
               </h1>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {header.description}
               </p>
             </div>
