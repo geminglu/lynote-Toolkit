@@ -19,12 +19,13 @@ import Link from "next/link";
 export const metadata: Metadata = createPageMetadata({
   absoluteTitle: "Lynote Toolkit 开发者在线工具箱",
   description:
-    "提供数据转换与代码生成、JSON 格式化、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等浏览器本地在线工具，适合开发调试和接口联调。",
+    "提供数据转换与代码生成、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等浏览器本地在线工具，适合开发调试和接口联调。",
   pathname: "/",
   keywords: [
     "开发者在线工具箱",
     "数据转换工具",
     "JSON 在线格式化",
+    "Base64 在线编解码",
     "URL 在线编码",
     "CSS 颜色转换",
     "JWT 在线解析",
@@ -37,6 +38,7 @@ export const metadata: Metadata = createPageMetadata({
 const SCENES = [
   "接口联调时快速格式化和校验 JSON 请求体",
   "把 JSON、YAML、XML 互转，并生成 TypeScript、Zod、Java、Go、C 模型草稿",
+  "对文本、Base64、Base64URL、Data URL 和文件内容做浏览器本地转换与字节检查",
   "对回调地址、redirect_uri 和 Query String 做 URL 编码、解码与参数排查",
   "在 RGBA、HSL、HWB、Lab、LCH、OKLCH 之间同步转换颜色",
   "在浏览器本地解析 JWT，并检查 exp、nbf、iat 和签名状态",
@@ -58,7 +60,8 @@ export default function Home() {
               开发者在线工具箱
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-              Lynote Toolkit 提供 JSON 在线格式化、URL
+              Lynote Toolkit 提供 JSON 在线格式化、Base64 / Base64URL
+              编解码、URL
               编解码与参数解析、数据格式转换与代码生成、颜色转换、JWT
               解析验签、密钥生成、哈希与 HMAC 计算、RSA
               联调等浏览器本地工具，适合接口调试、登录态排查、回调地址排错、主题调色、Webhook

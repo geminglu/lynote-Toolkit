@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Lynote Toolkit";
 export const SITE_TITLE = "Lynote Toolkit 开发者在线工具箱";
 export const SITE_DESCRIPTION =
-  "面向开发者的浏览器本地工具站，提供 JSON 格式化、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
+  "面向开发者的浏览器本地工具站，提供数据转换、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
 export const SITE_BASE_PATH =
   process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "";
 export const SITE_ORIGIN =
@@ -33,6 +33,22 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "Zod 在线生成",
       "Java Go C 模型生成",
       "数据格式转换工具",
+    ],
+  },
+  {
+    route: "/base64-tool",
+    readmePath: "/app/base64-tool/README.md",
+    title: "Base64 / Base64URL 编解码工具",
+    shortTitle: "Base64 编解码",
+    description:
+      "支持文本、Base64、Base64URL、JWT 片段、Data URL 与文件内容的浏览器本地转换、逐行处理和字节预览。",
+    keywords: [
+      "Base64 编码",
+      "Base64 解码",
+      "Base64URL",
+      "Data URL",
+      "JWT Base64URL 解码",
+      "文件转 Base64",
     ],
   },
   {
