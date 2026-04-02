@@ -10,6 +10,28 @@ export const SITE_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
   "http://localhost:3000";
 
+/**
+ * 工具分类类型。
+ */
+export type ToolCategory = "编码转换" | "颜色设计" | "数据处理" | "安全加密";
+
+/**
+ * 工具卡片图标标识。
+ */
+export type ToolIconKey =
+  | "binary"
+  | "color"
+  | "data"
+  | "hash"
+  | "json"
+  | "jwt"
+  | "key"
+  | "link"
+  | "rsa";
+
+/**
+ * 工具路由与展示配置。
+ */
 export type ToolRouteConfig = {
   route: string;
   readmePath: string;
@@ -17,6 +39,9 @@ export type ToolRouteConfig = {
   shortTitle: string;
   description: string;
   keywords: string[];
+  category: string;
+  chip: string;
+  iconKey: string;
 };
 
 export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
@@ -34,6 +59,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "Java Go C 模型生成",
       "数据格式转换工具",
     ],
+    category: "数据处理",
+    chip: "模型生成",
+    iconKey: "data",
   },
   {
     route: "/base64-tool",
@@ -50,6 +78,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "JWT Base64URL 解码",
       "文件转 Base64",
     ],
+    category: "编码转换",
+    chip: "文本与文件",
+    iconKey: "binary",
   },
   {
     route: "/json-formatting",
@@ -65,6 +96,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "JSON 转义",
       "JSON key 排序",
     ],
+    category: "数据处理",
+    chip: "高频调试",
+    iconKey: "json",
   },
   {
     route: "/color-converter",
@@ -80,6 +114,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "LCH 在线转换",
       "HSL 在线调色",
     ],
+    category: "颜色设计",
+    chip: "主题调色",
+    iconKey: "color",
   },
   {
     route: "/url-encoder",
@@ -96,6 +133,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "Query 参数解析",
       "encodeURIComponent",
     ],
+    category: "编码转换",
+    chip: "回调排查",
+    iconKey: "link",
   },
   {
     route: "/key-generator",
@@ -111,6 +151,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "AES Key 生成",
       "RSA Key Pair 生成",
     ],
+    category: "安全加密",
+    chip: "测试密钥",
+    iconKey: "key",
   },
   {
     route: "/jwt-debugger",
@@ -127,6 +170,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "HS256",
       "RS256",
     ],
+    category: "安全加密",
+    chip: "鉴权排障",
+    iconKey: "jwt",
   },
   {
     route: "/hash-generator",
@@ -142,6 +188,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "Hash 生成器",
       "Webhook 验签",
     ],
+    category: "安全加密",
+    chip: "摘要/HMAC",
+    iconKey: "hash",
   },
   {
     route: "/rsa-tool",
@@ -157,6 +206,9 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
       "RSA 签名工具",
       "RSA 密钥检查",
     ],
+    category: "安全加密",
+    chip: "签名验签",
+    iconKey: "rsa",
   },
 ];
 
