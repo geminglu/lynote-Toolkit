@@ -12,6 +12,7 @@ import {
   Link2,
   LockKeyhole,
   Palette,
+  QrCode,
   ShieldCheck,
   Sparkles,
   WandSparkles,
@@ -45,6 +46,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   jwt: ShieldCheck,
   key: KeyRound,
   link: Link2,
+  qr: QrCode,
   rsa: LockKeyhole,
 };
 

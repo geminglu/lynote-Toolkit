@@ -12,7 +12,7 @@ import Link from "next/link";
 export const metadata: Metadata = createPageMetadata({
   absoluteTitle: "Lynote Toolkit 开发者在线工具箱",
   description:
-    "提供数据转换与代码生成、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等浏览器本地在线工具，适合开发调试和接口联调。",
+    "提供数据转换与代码生成、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、二维码生成与解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等浏览器本地在线工具，适合开发调试和接口联调。",
   pathname: "/",
   keywords: [
     "开发者在线工具箱",
@@ -20,6 +20,7 @@ export const metadata: Metadata = createPageMetadata({
     "JSON 在线格式化",
     "Base64 在线编解码",
     "URL 在线编码",
+    "二维码生成器",
     "CSS 颜色转换",
     "JWT 在线解析",
     "RSA 在线工具",
@@ -33,6 +34,7 @@ const SCENES = [
   "把 JSON、YAML、XML 互转，并生成 TypeScript、Zod、Java、Go、C 模型草稿",
   "对文本、Base64、Base64URL、Data URL 和文件内容做浏览器本地转换与字节检查",
   "对回调地址、redirect_uri 和 Query String 做 URL 编码、解码与参数排查",
+  "生成文本、网址、Wi-Fi 和短信二维码，并对图片中的二维码做本地解析",
   "在 RGBA、HSL、HWB、Lab、LCH、OKLCH 之间同步转换颜色",
   "在浏览器本地解析 JWT，并检查 exp、nbf、iat 和签名状态",
   "生成 JWT Secret、AES-256、RSA Key Pair 等测试密钥",
@@ -107,10 +109,10 @@ export default function Home() {
                 </h1>
                 <p className="max-w-3xl text-base leading-8 text-muted-foreground md:text-lg">
                   Lynote Toolkit 提供数据转换与代码生成、JSON 格式化、Base64 /
-                  Base64URL 编解码、URL 参数排查、颜色转换、JWT
-                  验签、密钥生成、哈希/HMAC 以及 RSA
-                  联调等浏览器本地工具，适合接口调试、登录态排错、Webhook
-                  验签和测试密钥生成。
+                  Base64URL 编解码、URL 参数排查、二维码生成与解析、颜色转换、
+                  JWT 验签、密钥生成、哈希/HMAC 以及 RSA 联调等浏览器本地工具，
+                  适合接口调试、登录态排错、Webhook
+                  验签、扫码分享和测试密钥生成。
                 </p>
               </div>
 

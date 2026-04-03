@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Lynote Toolkit";
 export const SITE_TITLE = "Lynote Toolkit 开发者在线工具箱";
 export const SITE_DESCRIPTION =
-  "面向开发者的浏览器本地工具站，提供数据转换、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
+  "面向开发者的浏览器本地工具站，提供数据转换、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、二维码生成与解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
 export const SITE_BASE_PATH =
   process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "";
 export const SITE_ORIGIN =
@@ -27,6 +27,7 @@ export type ToolIconKey =
   | "jwt"
   | "key"
   | "link"
+  | "qr"
   | "rsa";
 
 /**
@@ -136,6 +137,25 @@ export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
     category: "编码转换",
     chip: "回调排查",
     iconKey: "link",
+  },
+  {
+    route: "/qr-code-tool",
+    readmePath: "/app/qr-code-tool/README.md",
+    title: "二维码在线生成与解析工具",
+    shortTitle: "二维码工具",
+    description:
+      "支持文本、网址、Wi-Fi、电话、短信和邮箱二维码的浏览器本地生成、Logo 美化、透明背景导出与图片解析。",
+    keywords: [
+      "二维码生成器",
+      "二维码解析",
+      "WiFi 二维码生成",
+      "URL 转二维码",
+      "透明背景二维码",
+      "带 Logo 二维码",
+    ],
+    category: "数据处理",
+    chip: "扫码分享",
+    iconKey: "qr",
   },
   {
     route: "/key-generator",
