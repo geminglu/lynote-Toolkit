@@ -130,6 +130,8 @@ export default function HomeToolCatalog({ items }: HomeToolCatalogProps) {
             <Link
               className="group relative overflow-hidden rounded-[28px] border border-border/60 bg-card/90 p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5"
               href={item.route}
+              rel="noopener noreferrer"
+              target="_blank"
               key={item.route}
               onPointerMove={handlePointerMove}
             >
