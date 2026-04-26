@@ -79,6 +79,7 @@ export default function MonacoJsonEditor({
       }}
       height="100%"
       language="json"
+      loading={null}
       onChange={onChange}
       onMount={onMount}
       options={editorOptions}

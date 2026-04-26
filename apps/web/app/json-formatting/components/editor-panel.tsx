@@ -17,7 +17,11 @@ import EditorToolbar from "./editor-toolbar";
 const MonacoJsonEditor = dynamic(
   () => import("./monaco-json-editor-client").then((module) => module.default),
   {
-    loading: () => <div className="h-full min-h-[420px] bg-muted/20" />,
+    loading: () => (
+      <div className="flex h-full min-h-[420px] items-center justify-center bg-muted/20">
+        loading...
+      </div>
+    ),
     ssr: false,
   },
 );

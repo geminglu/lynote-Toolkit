@@ -19,45 +19,43 @@ function JsonFormattingWorkspaceContent({
   const { leftError } = useJsonFormattingContext();
 
   return (
-    <div className="">
-      <WorkspaceLayout
-        contentClassName=""
-        footer={<MarkdownRenderer content={markdownContent} />}
-        header={{
-          title: "JSON 格式化",
-          description:
-            "左侧作为主输入源，右侧会在左侧 JSON 合法时自动同步格式化结果。",
-        }}
-        sidebar={<HistorySidebar />}
-      >
-        <div className="min-h-[calc(100vh-0px)]">
-          {leftError && (
-            <Alert variant="destructive">
-              <AlertTitle>左侧 JSON 解析失败</AlertTitle>
-              <AlertDescription>{leftError}</AlertDescription>
-            </Alert>
-          )}
+    <WorkspaceLayout
+      contentClassName=""
+      footer={<MarkdownRenderer content={markdownContent} />}
+      header={{
+        title: "JSON 格式化",
+        description:
+          "左侧作为主输入源，右侧会在左侧 JSON 合法时自动同步格式化结果。",
+      }}
+      sidebar={<HistorySidebar />}
+    >
+      <div className="h-[calc(100vh-100px)] min-h-[calc(50vh)]">
+        {leftError && (
+          <Alert variant="destructive">
+            <AlertTitle>左侧 JSON 解析失败</AlertTitle>
+            <AlertDescription>{leftError}</AlertDescription>
+          </Alert>
+        )}
 
-          <div
-            className={cn(
-              "grid h-full min-h-0 flex-1 gap-4",
-              "grid-cols-1 lg:grid-cols-2",
-            )}
-          >
-            <EditorPanel
-              description="这里是原始 JSON 输入区。左侧变化会驱动右侧重新生成格式化结果。"
-              side="left"
-              title="原始数据"
-            />
-            <EditorPanel
-              description="这里是格式化结果区。你可以继续手动编辑，但不会反向同步到左侧。"
-              side="right"
-              title="格式化结果"
-            />
-          </div>
+        <div
+          className={cn(
+            "grid h-full min-h-0 flex-1 gap-4",
+            "grid-cols-1 lg:grid-cols-2",
+          )}
+        >
+          <EditorPanel
+            description="这里是原始 JSON 输入区。左侧变化会驱动右侧重新生成格式化结果。"
+            side="left"
+            title="原始数据"
+          />
+          <EditorPanel
+            description="这里是格式化结果区。你可以继续手动编辑，但不会反向同步到左侧。"
+            side="right"
+            title="格式化结果"
+          />
         </div>
-      </WorkspaceLayout>
-    </div>
+      </div>
+    </WorkspaceLayout>
   );
 }
 
