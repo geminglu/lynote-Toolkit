@@ -2,10 +2,10 @@
 
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import WorkspaceLayout from "@/components/WorkspaceLayout";
+import { Base64ToolProvider } from "./context";
 
 import ConfigPanel from "./components/config-panel";
 import ResultPanel from "./components/result-panel";
-import { Base64ToolProvider } from "./context";
 
 type Base64ToolWorkspaceClientProps = {
   markdownContent: string;

@@ -84,7 +84,12 @@ function ToolWorkspaceContent({ markdownContent }: ToolWorkspaceClientProps) {
         description: "工具描述",
       }}
     >
-      <div className={cn("grid min-h-0 flex-1 gap-4", "grid-cols-1 lg:grid-cols-2")}>
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 gap-4",
+          "grid-cols-1 lg:grid-cols-2",
+        )}
+      >
         <ConfigPanel />
         <ResultPanel />
       </div>

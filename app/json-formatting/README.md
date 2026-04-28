@@ -3,7 +3,7 @@
 1. 普通 JSON
 
 ```json
-{"name":"tool","enabled":true}
+{ "name": "tool", "enabled": true }
 ```
 
 2. 已转义的 JSON 字符串
