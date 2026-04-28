@@ -5,6 +5,7 @@ import {
   SITE_NAME,
   SITE_TITLE,
 } from "@/lib/seo";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -64,6 +65,7 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
+        <SpeedInsights />
       </body>
     </html>
   );
