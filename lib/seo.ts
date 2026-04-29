@@ -22,6 +22,7 @@ export type ToolIconKey =
   | "binary"
   | "color"
   | "data"
+  | "diff"
   | "hash"
   | "json"
   | "jwt"
@@ -46,6 +47,25 @@ export type ToolRouteConfig = {
 };
 
 export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
+  {
+    route: "/diff-tool",
+    readmePath: "/app/diff-tool/README.md",
+    title: "文本对比工具",
+    shortTitle: "文本对比工具",
+    description:
+      "基于 Monaco DiffEditor 对比 JSON、Markdown、TXT 和常见代码文件，支持并排/逐行视图、UTF-8 文件上传、语法高亮、格式化和差异跳转。",
+    keywords: [
+      "文本对比工具",
+      "代码 Diff 工具",
+      "JSON 对比",
+      "Markdown 对比",
+      "Monaco DiffEditor",
+      "在线文本比较",
+    ],
+    category: "数据处理",
+    chip: "代码 Diff",
+    iconKey: "diff",
+  },
   {
     route: "/data-converter",
     readmePath: "/app/data-converter/README.md",

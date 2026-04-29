@@ -1,6 +1,6 @@
 ---
 description: 组件开发模式和最佳实践
-globs: apps/**/*.tsx,apps/**/*.ts
+globs: *.ts,*.tsx
 alwaysApply: false
 ---
 # 组件开发模式
@@ -232,7 +232,3 @@ export { default } from "./ComponentName";
 export type { PropsType } from "./type";
 export * from "./type";
 ```
-
-## 注释规范
-
-- 以下场景必须有中文注释：组件的props、定义的ts类型、hook。

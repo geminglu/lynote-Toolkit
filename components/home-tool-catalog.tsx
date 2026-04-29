@@ -4,6 +4,7 @@ import { ToolRouteConfig } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowLeftRight,
   ArrowRight,
   Binary,
   FileJson,
@@ -41,6 +42,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   binary: Binary,
   color: Palette,
   data: WandSparkles,
+  diff: ArrowLeftRight,
   hash: Fingerprint,
   json: FileJson,
   jwt: ShieldCheck,

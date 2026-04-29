@@ -8,10 +8,31 @@ import { useEffect } from "react";
  */
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (
-      process.env.NODE_ENV !== "production" ||
-      !("serviceWorker" in navigator)
-    ) {
+    if (!("serviceWorker" in navigator)) {
+      return;
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      /**
+       * 开发环境下如果浏览器曾经注册过生产 SW，旧缓存可能会拦截
+       * Turbopack chunk，导致 React 找不到最新模块工厂。
+       */
+      void navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) =>
+          Promise.all(
+            registrations.map((registration) => registration.unregister()),
+          ),
+        );
+      void caches
+        .keys()
+        .then((cacheKeys) =>
+          Promise.all(
+            cacheKeys
+              .filter((cacheKey) => cacheKey.startsWith("lynote-"))
+              .map((cacheKey) => caches.delete(cacheKey)),
+          ),
+        );
       return;
     }
 

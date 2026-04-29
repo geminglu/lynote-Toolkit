@@ -1,6 +1,6 @@
-const PAGE_CACHE_NAME = "lynote-pages-cache-v1";
-const ASSET_CACHE_NAME = "lynote-assets-cache-v1";
-const RUNTIME_CACHE_NAME = "lynote-runtime-cache-v1";
+const PAGE_CACHE_NAME = "lynote-pages-cache-v2";
+const ASSET_CACHE_NAME = "lynote-assets-cache-v2";
+const RUNTIME_CACHE_NAME = "lynote-runtime-cache-v2";
 
 const PRECACHE_PATHS = ["/", "/manifest.webmanifest"];
 
@@ -120,7 +120,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (requestUrl.pathname.includes("/_next/static/")) {
-    event.respondWith(cacheFirst(request, ASSET_CACHE_NAME));
+    event.respondWith(networkFirst(request, ASSET_CACHE_NAME));
     return;
   }
 
