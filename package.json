@@ -13,7 +13,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md,mdx}\"",
     "check": "pnpm lint && pnpm type-check && pnpm format:check",
     "lint-staged": "lint-staged",
-    "prepare": "husky install"
+    "prepare": "husky"
   },
   "dependencies": {
     "@lucide/lab": "^0.1.2",
