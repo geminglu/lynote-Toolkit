@@ -2,7 +2,6 @@
 
 import {
   Combobox,
-  ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
@@ -48,24 +47,7 @@ const LanguageCombobox: FC<LanguageComboboxProps> = ({
   return (
     <Combobox<DiffLanguageOption>
       autoHighlight
-      filter={(option, query) => {
-        const normalizedQuery = query.trim().toLowerCase();
-
-        if (!normalizedQuery) {
-          return true;
-        }
-
-        return (
-          option.label.toLowerCase().includes(normalizedQuery) ||
-          option.value.toLowerCase().includes(normalizedQuery)
-        );
-      }}
       items={options}
-      itemToStringLabel={(option) => option.label}
-      itemToStringValue={(option) => option.value}
-      isItemEqualToValue={(itemValue, selectedValue) =>
-        itemValue.value === selectedValue.value
-      }
       onValueChange={(option) => {
         if (!option) {
           return;
@@ -76,6 +58,7 @@ const LanguageCombobox: FC<LanguageComboboxProps> = ({
       value={selectedOption}
     >
       <ComboboxInput
+        id="diff-language"
         aria-label="语法高亮"
         className="w-48"
         placeholder="搜索语言"
@@ -83,16 +66,11 @@ const LanguageCombobox: FC<LanguageComboboxProps> = ({
       <ComboboxContent>
         <ComboboxEmpty>没有匹配的语言</ComboboxEmpty>
         <ComboboxList>
-          <ComboboxCollection>
-            {(option: DiffLanguageOption, index: number) => (
-              <ComboboxItem index={index} key={option.value} value={option}>
-                <span>{option.label}</span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {option.value}
-                </span>
-              </ComboboxItem>
-            )}
-          </ComboboxCollection>
+          {(option: DiffLanguageOption, index: number) => (
+            <ComboboxItem index={index} key={option.value} value={option}>
+              {option.label}
+            </ComboboxItem>
+          )}
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
