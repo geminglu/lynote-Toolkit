@@ -47,19 +47,32 @@ function useBase64Tool() {
       config.inputMode === "file"
         ? Boolean(fileState.file && fileState.bytes)
         : Boolean(config.input.trim());
+    const requestId = requestIdRef.current + 1;
+
+    requestIdRef.current = requestId;
 
     if (!hasInput) {
-      setResult(null);
-      setError("");
-      setLoading(false);
-      return;
+      const clearTimer = window.setTimeout(() => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+
+        setResult(null);
+        setError("");
+        setLoading(false);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(clearTimer);
+      };
     }
 
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-    setLoading(true);
-
-    const timer = window.setTimeout(() => {
+    const loadingTimer = window.setTimeout(() => {
+      if (requestIdRef.current === requestId) {
+        setLoading(true);
+      }
+    }, 0);
+    const processTimer = window.setTimeout(() => {
       try {
         const nextResult = generateBase64ToolResult(config, fileState);
 
@@ -88,7 +101,8 @@ function useBase64Tool() {
     }, 120);
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(loadingTimer);
+      window.clearTimeout(processTimer);
     };
   }, [config, fileState]);
 
