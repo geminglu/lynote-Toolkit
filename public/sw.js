@@ -29,6 +29,19 @@ function isSuccessfulResponse(response) {
   return response && (response.ok || response.type === "opaque");
 }
 
+async function cacheSuccessfulResponse(cache, request, response) {
+  if (!isSuccessfulResponse(response)) {
+    return;
+  }
+
+  try {
+    await cache.put(request, response.clone());
+  } catch (error) {
+    // 缓存写入只是加速与离线兜底，不能因为配额或隐私策略问题丢弃已成功获取的资源。
+    console.warn("Service Worker cache write failed", error);
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
@@ -68,9 +81,7 @@ async function networkFirst(request, cacheName) {
   try {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
-    if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
-    }
+    await cacheSuccessfulResponse(cache, request, response);
 
     return response;
   } catch (error) {
@@ -94,9 +105,7 @@ async function cacheFirst(request, cacheName) {
 
   const response = await fetch(request);
 
-  if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
-  }
+  await cacheSuccessfulResponse(cache, request, response);
 
   return response;
 }
