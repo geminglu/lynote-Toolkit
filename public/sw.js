@@ -29,6 +29,40 @@ function isSuccessfulResponse(response) {
   return response && (response.ok || response.type === "opaque");
 }
 
+async function openCache(cacheName) {
+  try {
+    return await caches.open(cacheName);
+  } catch (error) {
+    console.warn("Service Worker cache is unavailable", error);
+    return null;
+  }
+}
+
+async function matchCachedResponse(cache, request) {
+  if (!cache) {
+    return undefined;
+  }
+
+  try {
+    return await cache.match(request);
+  } catch (error) {
+    console.warn("Service Worker cache read failed", error);
+    return undefined;
+  }
+}
+
+async function putCachedResponse(cache, request, response) {
+  if (!cache || !isSuccessfulResponse(response)) {
+    return;
+  }
+
+  try {
+    await cache.put(request, response.clone());
+  } catch (error) {
+    console.warn("Service Worker cache write failed", error);
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
@@ -63,18 +97,16 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
+  const cache = await openCache(cacheName);
 
   try {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
-    if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
-    }
+    await putCachedResponse(cache, request, response);
 
     return response;
   } catch (error) {
-    const cachedResponse = await cache.match(request);
+    const cachedResponse = await matchCachedResponse(cache, request);
 
     if (cachedResponse) {
       return cachedResponse;
@@ -85,8 +117,8 @@ async function networkFirst(request, cacheName) {
 }
 
 async function cacheFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
+  const cache = await openCache(cacheName);
+  const cachedResponse = await matchCachedResponse(cache, request);
 
   if (cachedResponse) {
     return cachedResponse;
@@ -94,9 +126,7 @@ async function cacheFirst(request, cacheName) {
 
   const response = await fetch(request);
 
-  if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
-  }
+  await putCachedResponse(cache, request, response);
 
   return response;
 }
