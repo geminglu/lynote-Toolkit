@@ -3,6 +3,13 @@
 import { withBasePath } from "@/lib/seo";
 import { useEffect } from "react";
 
+const SERVICE_WORKER_CACHE_PREFIX = "lynote-tool-";
+const LEGACY_SERVICE_WORKER_CACHE_NAMES = [
+  "lynote-pages-cache-v2",
+  "lynote-assets-cache-v2",
+  "lynote-runtime-cache-v2",
+];
+
 /**
  * 负责在浏览器端静默注册 Service Worker。
  */
@@ -29,7 +36,11 @@ export default function ServiceWorkerRegister() {
         .then((cacheKeys) =>
           Promise.all(
             cacheKeys
-              .filter((cacheKey) => cacheKey.startsWith("lynote-"))
+              .filter(
+                (cacheKey) =>
+                  cacheKey.startsWith(SERVICE_WORKER_CACHE_PREFIX) ||
+                  LEGACY_SERVICE_WORKER_CACHE_NAMES.includes(cacheKey),
+              )
               .map((cacheKey) => caches.delete(cacheKey)),
           ),
         );
