@@ -4,12 +4,10 @@ export const SITE_NAME = "Lynote Toolkit";
 export const SITE_TITLE = "Lynote Toolkit 开发者在线工具箱";
 export const SITE_DESCRIPTION =
   "面向开发者的浏览器本地工具站，提供数据转换、JSON 格式化、Base64 / Base64URL 编解码、URL 编解码与参数解析、二维码生成与解析、颜色转换、JWT 解析验签、密钥生成、哈希/HMAC、RSA 联调等在线工具。";
-export const SITE_BASE_PATH =
-  process.env.NEXT_PUBLIC_SITE_BASE_PATH ||
-  (process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "");
+export const SITE_BASE_PATH = process.env.NEXT_PUBLIC_SITE_BASE_PATH || "";
+const LOCAL_SITE_ORIGIN = "http://localhost:3000";
 export const SITE_ORIGIN =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-  "http://localhost:3000";
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || LOCAL_SITE_ORIGIN;
 
 /**
  * 工具分类类型。

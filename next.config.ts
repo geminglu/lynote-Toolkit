@@ -1,14 +1,13 @@
 import type { NextConfig } from "next";
 
-const siteBasePath =
-  process.env.NEXT_PUBLIC_SITE_BASE_PATH ||
-  (process.env.GITHUB_ACTIONS === "true" ? "/lynote-Toolkit" : "");
+const siteBasePath = process.env.NEXT_PUBLIC_SITE_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
   output: "export",
   basePath: siteBasePath || undefined,
   env: {
     NEXT_PUBLIC_SITE_BASE_PATH: siteBasePath,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   },
   transpilePackages: ["lynote-ui"],
 };
