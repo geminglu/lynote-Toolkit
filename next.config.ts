@@ -7,7 +7,8 @@ const nextConfig: NextConfig = {
   basePath: siteBasePath || undefined,
   env: {
     NEXT_PUBLIC_SITE_BASE_PATH: siteBasePath,
-    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_SITE_URL:
+      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   },
   transpilePackages: ["lynote-ui"],
 };

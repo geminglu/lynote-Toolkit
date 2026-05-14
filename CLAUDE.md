@@ -63,3 +63,8 @@ Next.js 16 static-site web app deployed to GitHub Pages. The site exports static
 
 - Prettier with `prettier-plugin-organize-imports` and `prettier-plugin-tailwindcss`
 - 2-space indentation, LF line endings (from EditorConfig)
+
+## documentation conventions
+
+[lynote-ui](https://geminglu.github.io/lynote-ui/components/index.md)
+[lynote-ui/{component}](https://geminglu.github.io/lynote-ui/components/{component}.md)
