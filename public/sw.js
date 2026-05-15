@@ -59,37 +59,89 @@ async function trimCache(cache, maxEntries) {
   );
 }
 
+async function openCacheBestEffort(cacheName) {
+  try {
+    return await caches.open(cacheName);
+  } catch {
+    return null;
+  }
+}
+
+async function matchCacheBestEffort(cache, request) {
+  if (!cache) {
+    return undefined;
+  }
+
+  try {
+    return await cache.match(request);
+  } catch {
+    return undefined;
+  }
+}
+
+async function putCacheBestEffort(cache, request, response) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await cache.put(request, response);
+  } catch {
+    // 缓存写入失败不能覆盖已经成功拿到的网络响应。
+  }
+}
+
+async function trimCacheBestEffort(cache, maxEntries) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await trimCache(cache, maxEntries);
+  } catch {
+    // 清理失败只影响缓存容量，不应阻断本次资源加载。
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
   event.waitUntil(
-    caches
-      .open(ASSET_CACHE_NAME)
-      .then((cache) =>
-        Promise.all(
-          PRECACHE_PATHS.map((pathname) =>
-            cache.add(withBasePath(pathname)).catch(() => undefined),
-          ),
+    (async () => {
+      const cache = await openCacheBestEffort(ASSET_CACHE_NAME);
+
+      if (!cache) {
+        return;
+      }
+
+      await Promise.all(
+        PRECACHE_PATHS.map((pathname) =>
+          cache.add(withBasePath(pathname)).catch(() => undefined),
         ),
-      ),
+      );
+    })(),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const cacheKeys = await caches.keys();
+      try {
+        const cacheKeys = await caches.keys();
 
-      await Promise.all(
-        cacheKeys
-          .filter(
-            (cacheKey) =>
-              LEGACY_CACHE_NAMES.includes(cacheKey) ||
-              (cacheKey.startsWith(CACHE_PREFIX) &&
-                !CURRENT_CACHE_NAMES.includes(cacheKey)),
-          )
-          .map((cacheKey) => caches.delete(cacheKey)),
-      );
+        await Promise.all(
+          cacheKeys
+            .filter(
+              (cacheKey) =>
+                LEGACY_CACHE_NAMES.includes(cacheKey) ||
+                (cacheKey.startsWith(CACHE_PREFIX) &&
+                  !CURRENT_CACHE_NAMES.includes(cacheKey)),
+            )
+            .map((cacheKey) => caches.delete(cacheKey).catch(() => undefined)),
+        );
+      } catch {
+        // Cache API 不可用时仍然接管客户端，避免旧 SW 长时间停留。
+      }
 
       await self.clients.claim();
     })(),
@@ -97,18 +149,18 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
+  const cache = await openCacheBestEffort(cacheName);
 
   try {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
     if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
+      await putCacheBestEffort(cache, request, response.clone());
     }
 
     return response;
   } catch (error) {
-    const cachedResponse = await cache.match(request);
+    const cachedResponse = await matchCacheBestEffort(cache, request);
 
     if (cachedResponse) {
       return cachedResponse;
@@ -119,8 +171,8 @@ async function networkFirst(request, cacheName) {
 }
 
 async function cacheFirst(request, cacheName, maxEntries) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
+  const cache = await openCacheBestEffort(cacheName);
+  const cachedResponse = await matchCacheBestEffort(cache, request);
 
   if (cachedResponse) {
     return cachedResponse;
@@ -129,10 +181,10 @@ async function cacheFirst(request, cacheName, maxEntries) {
   const response = await fetch(request);
 
   if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
+    await putCacheBestEffort(cache, request, response.clone());
 
     if (maxEntries) {
-      await trimCache(cache, maxEntries);
+      await trimCacheBestEffort(cache, maxEntries);
     }
   }
 
