@@ -1,6 +1,6 @@
+@import "lynote-ui/style";
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@import "lynote-ui/style";
 
 @source "../app/**/*.{ts,tsx}";
 @source "../components/**/*.{ts,tsx}";
