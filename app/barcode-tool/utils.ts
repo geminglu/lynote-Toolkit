@@ -338,6 +338,35 @@ function buildBwipOptions(config: BarcodeToolConfig): BwipRenderOptions {
   return baseOptions;
 }
 
+function appendGs1CheckDigit(value: string) {
+  const sum = value
+    .split("")
+    .reverse()
+    .reduce((total, digit, index) => {
+      const weight = index % 2 === 0 ? 3 : 1;
+
+      return total + Number(digit) * weight;
+    }, 0);
+  const checkDigit = (10 - (sum % 10)) % 10;
+
+  return `${value}${checkDigit}`;
+}
+
+function getFinalBarcodeText(symbology: BarcodeSymbology, text: string) {
+  switch (symbology) {
+    case "ean13":
+      return text.length === 12 ? appendGs1CheckDigit(text) : text;
+    case "ean8":
+      return text.length === 7 ? appendGs1CheckDigit(text) : text;
+    case "upca":
+      return text.length === 11 ? appendGs1CheckDigit(text) : text;
+    case "itf14":
+      return text.length === 13 ? appendGs1CheckDigit(text) : text;
+    default:
+      return text;
+  }
+}
+
 function getEstimatedWarnings(
   config: BarcodeToolConfig,
   meta: SymbologyMeta,
@@ -386,7 +415,8 @@ export function generateBarcodeResult(
     throw new Error(formatError);
   }
 
-  const options = buildBwipOptions({ ...config, text: trimmed });
+  const finalText = getFinalBarcodeText(config.symbology, trimmed);
+  const options = buildBwipOptions({ ...config, text: finalText });
   const canvas = document.createElement("canvas");
 
   try {
@@ -401,7 +431,7 @@ export function generateBarcodeResult(
   const svgMarkup = bwipjs.toSVG(options);
 
   return {
-    text: trimmed,
+    text: finalText,
     symbology: config.symbology,
     pngDataUrl,
     svgMarkup,
