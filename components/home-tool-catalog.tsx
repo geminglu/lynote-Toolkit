@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
   ArrowRight,
+  Barcode,
   Binary,
   FileJson,
   Fingerprint,
@@ -39,6 +40,7 @@ type HomeToolCatalogProps = {
 };
 
 const ICON_MAP: Record<string, LucideIcon> = {
+  barcode: Barcode,
   binary: Binary,
   color: Palette,
   data: WandSparkles,
