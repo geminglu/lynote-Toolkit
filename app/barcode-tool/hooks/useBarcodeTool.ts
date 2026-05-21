@@ -152,8 +152,17 @@ function useBarcodeTool() {
 
   const copyText = useCallback(
     async (value: string, successMessage: string) => {
-      await navigator.clipboard.writeText(value);
-      toast.success(successMessage);
+      if (!navigator.clipboard?.writeText) {
+        toast.error("当前浏览器不支持直接复制文本，请手动选择内容复制。");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(value);
+        toast.success(successMessage);
+      } catch {
+        toast.error("复制文本失败，请确认浏览器是否允许剪贴板写入。");
+      }
     },
     [],
   );
