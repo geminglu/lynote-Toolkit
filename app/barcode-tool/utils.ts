@@ -39,6 +39,23 @@ const MAX_PARSE_CANVAS_SIZE = 1600;
 
 export const PARSE_FILE_SIZE_LIMIT = MAX_PARSE_FILE_SIZE;
 
+const BWIP_BCID_BY_SYMBOLOGY: Record<BarcodeSymbology, string> = {
+  code128: "code128",
+  ean13: "ean13",
+  ean8: "ean8",
+  upca: "upca",
+  upce: "upce",
+  code39: "code39",
+  code93: "code93",
+  itf14: "itf14",
+  interleaved2of5: "interleaved2of5",
+  // bwip-js 使用 rationalizedCodabar 作为 Codabar 的编码器名称。
+  codabar: "rationalizedCodabar",
+  datamatrix: "datamatrix",
+  pdf417: "pdf417",
+  azteccode: "azteccode",
+};
+
 export const BARCODE_MODE_OPTIONS: Array<SelectOption<BarcodeToolMode>> = [
   {
     label: "生成条形码",
@@ -103,7 +120,7 @@ export const BARCODE_SYMBOLOGY_META: Record<BarcodeSymbology, SymbologyMeta> = {
     label: "UPC-E",
     description: "UPC-A 的 6 位压缩形式，适合小型包装。",
     placeholder: "请输入 6 位或 8 位数字",
-    example: "01245678",
+    example: "01234565",
     linear: true,
     validate: (text) => {
       if (!/^\d{6,8}$/.test(text)) {
@@ -315,7 +332,7 @@ function normalizeHexColor(hex: string) {
 function buildBwipOptions(config: BarcodeToolConfig): BwipRenderOptions {
   const meta = getSymbologyMeta(config.symbology);
   const baseOptions: BwipRenderOptions = {
-    bcid: config.symbology,
+    bcid: BWIP_BCID_BY_SYMBOLOGY[config.symbology],
     text: config.text,
     scale: config.scale,
     includetext: meta.linear ? config.includeText : false,
