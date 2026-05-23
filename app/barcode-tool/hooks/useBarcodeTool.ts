@@ -2,7 +2,7 @@
 
 import { toast } from "lynote-ui/sonner";
 import type { ClipboardEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { BarcodeParseResult, BarcodeToolConfig } from "../type";
 import {
@@ -26,6 +26,7 @@ function useBarcodeTool() {
   );
   const [parseLoading, setParseLoading] = useState(false);
   const [parseError, setParseError] = useState("");
+  const parseRequestIdRef = useRef(0);
 
   // 生成模式直接派生，避免在 effect 中触发额外渲染。
   const generateState = useMemo(() => {
@@ -70,6 +71,8 @@ function useBarcodeTool() {
     }));
 
     if (mode === "generate") {
+      parseRequestIdRef.current += 1;
+      setParseLoading(false);
       setParseError("");
     }
   }, []);
@@ -95,6 +98,7 @@ function useBarcodeTool() {
   }, []);
 
   const resetToDefaults = useCallback(() => {
+    parseRequestIdRef.current += 1;
     setConfig(DEFAULT_BARCODE_TOOL_CONFIG);
     setParseResult(null);
     setParseError("");
@@ -107,11 +111,19 @@ function useBarcodeTool() {
       return;
     }
 
+    const requestId = parseRequestIdRef.current + 1;
+    parseRequestIdRef.current = requestId;
+
     setParseLoading(true);
+    setParseResult(null);
     setParseError("");
 
     try {
       const nextResult = await parseBarcodeFromFile(file);
+
+      if (parseRequestIdRef.current !== requestId) {
+        return;
+      }
 
       setConfig((previousConfig) => ({
         ...previousConfig,
@@ -120,14 +132,19 @@ function useBarcodeTool() {
       setParseResult(nextResult);
       toast.success("条形码解析成功。");
     } catch (error) {
+      if (parseRequestIdRef.current !== requestId) {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : "条形码解析失败，请稍后重试。";
 
-      setParseResult(null);
       setParseError(message);
       toast.error(message);
     } finally {
-      setParseLoading(false);
+      if (parseRequestIdRef.current === requestId) {
+        setParseLoading(false);
+      }
     }
   }, []);
 
@@ -146,8 +163,10 @@ function useBarcodeTool() {
   );
 
   const clearParseResult = useCallback(() => {
+    parseRequestIdRef.current += 1;
     setParseResult(null);
     setParseError("");
+    setParseLoading(false);
   }, []);
 
   const copyText = useCallback(
