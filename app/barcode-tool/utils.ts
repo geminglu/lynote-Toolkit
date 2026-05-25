@@ -39,9 +39,11 @@ const MAX_PARSE_CANVAS_SIZE = 1600;
 
 export const PARSE_FILE_SIZE_LIMIT = MAX_PARSE_FILE_SIZE;
 
-const BWIP_BCID_BY_SYMBOLOGY = {
+const BWIP_BCID_BY_SYMBOLOGY: Partial<
+  Record<BarcodeSymbology, BwipRenderOptions["bcid"]>
+> = {
   codabar: "rationalizedCodabar",
-} satisfies Partial<Record<BarcodeSymbology, BwipRenderOptions["bcid"]>>;
+};
 
 export const BARCODE_MODE_OPTIONS: Array<SelectOption<BarcodeToolMode>> = [
   {
