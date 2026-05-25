@@ -39,6 +39,10 @@ const MAX_PARSE_CANVAS_SIZE = 1600;
 
 export const PARSE_FILE_SIZE_LIMIT = MAX_PARSE_FILE_SIZE;
 
+const BWIP_BCID_BY_SYMBOLOGY = {
+  codabar: "rationalizedCodabar",
+} satisfies Partial<Record<BarcodeSymbology, BwipRenderOptions["bcid"]>>;
+
 export const BARCODE_MODE_OPTIONS: Array<SelectOption<BarcodeToolMode>> = [
   {
     label: "生成条形码",
@@ -315,7 +319,7 @@ function normalizeHexColor(hex: string) {
 function buildBwipOptions(config: BarcodeToolConfig): BwipRenderOptions {
   const meta = getSymbologyMeta(config.symbology);
   const baseOptions: BwipRenderOptions = {
-    bcid: config.symbology,
+    bcid: BWIP_BCID_BY_SYMBOLOGY[config.symbology] ?? config.symbology,
     text: config.text,
     scale: config.scale,
     includetext: meta.linear ? config.includeText : false,

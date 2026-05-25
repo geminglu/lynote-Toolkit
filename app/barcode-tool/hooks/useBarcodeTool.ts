@@ -2,7 +2,7 @@
 
 import { toast } from "lynote-ui/sonner";
 import type { ClipboardEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BarcodeParseResult, BarcodeToolConfig } from "../type";
 import {
@@ -26,10 +26,16 @@ function useBarcodeTool() {
   );
   const [parseLoading, setParseLoading] = useState(false);
   const [parseError, setParseError] = useState("");
+  const [isClientReady, setIsClientReady] = useState(false);
+  const parseRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    setIsClientReady(true);
+  }, []);
 
   // 生成模式直接派生，避免在 effect 中触发额外渲染。
   const generateState = useMemo(() => {
-    if (config.mode !== "generate") {
+    if (!isClientReady || config.mode !== "generate") {
       return { result: null, error: "" };
     }
 
@@ -48,7 +54,11 @@ function useBarcodeTool() {
             : "条形码生成失败，请检查输入。",
       };
     }
-  }, [config]);
+  }, [config, isClientReady]);
+
+  const invalidateParseRequest = useCallback(() => {
+    parseRequestIdRef.current += 1;
+  }, []);
 
   const updateConfig = useCallback(
     <Key extends keyof BarcodeToolConfig>(
@@ -63,16 +73,21 @@ function useBarcodeTool() {
     [],
   );
 
-  const switchMode = useCallback((mode: BarcodeToolConfig["mode"]) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      mode,
-    }));
+  const switchMode = useCallback(
+    (mode: BarcodeToolConfig["mode"]) => {
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        mode,
+      }));
 
-    if (mode === "generate") {
-      setParseError("");
-    }
-  }, []);
+      if (mode === "generate") {
+        invalidateParseRequest();
+        setParseError("");
+        setParseLoading(false);
+      }
+    },
+    [invalidateParseRequest],
+  );
 
   // 切换码制时，自动同步示例值，避免上一个码制的内容触发校验失败。
   const switchSymbology = useCallback(
@@ -95,31 +110,38 @@ function useBarcodeTool() {
   }, []);
 
   const resetToDefaults = useCallback(() => {
+    invalidateParseRequest();
     setConfig(DEFAULT_BARCODE_TOOL_CONFIG);
     setParseResult(null);
     setParseError("");
     setParseLoading(false);
     toast.success("已恢复条形码工具默认配置。");
-  }, []);
+  }, [invalidateParseRequest]);
 
   const parseFile = useCallback(async (file: File | null) => {
     if (!file) {
       return;
     }
 
+    const requestId = (parseRequestIdRef.current += 1);
     setParseLoading(true);
     setParseError("");
+    setParseResult(null);
 
     try {
       const nextResult = await parseBarcodeFromFile(file);
 
-      setConfig((previousConfig) => ({
-        ...previousConfig,
-        mode: "parse",
-      }));
+      if (requestId !== parseRequestIdRef.current) {
+        return;
+      }
+
       setParseResult(nextResult);
       toast.success("条形码解析成功。");
     } catch (error) {
+      if (requestId !== parseRequestIdRef.current) {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : "条形码解析失败，请稍后重试。";
 
@@ -127,7 +149,9 @@ function useBarcodeTool() {
       setParseError(message);
       toast.error(message);
     } finally {
-      setParseLoading(false);
+      if (requestId === parseRequestIdRef.current) {
+        setParseLoading(false);
+      }
     }
   }, []);
 
@@ -146,9 +170,11 @@ function useBarcodeTool() {
   );
 
   const clearParseResult = useCallback(() => {
+    invalidateParseRequest();
     setParseResult(null);
     setParseError("");
-  }, []);
+    setParseLoading(false);
+  }, [invalidateParseRequest]);
 
   const copyText = useCallback(
     async (value: string, successMessage: string) => {
