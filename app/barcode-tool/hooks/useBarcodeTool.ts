@@ -2,7 +2,13 @@
 
 import { toast } from "lynote-ui/sonner";
 import type { ClipboardEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type { BarcodeParseResult, BarcodeToolConfig } from "../type";
 import {
@@ -12,6 +18,10 @@ import {
   getSymbologyMeta,
   parseBarcodeFromFile,
 } from "../utils";
+
+const subscribeClientReady = () => () => {};
+const getClientReadySnapshot = () => true;
+const getServerReadySnapshot = () => false;
 
 /**
  * 条形码工具的主状态与交互逻辑。
@@ -26,12 +36,12 @@ function useBarcodeTool() {
   );
   const [parseLoading, setParseLoading] = useState(false);
   const [parseError, setParseError] = useState("");
-  const [isClientReady, setIsClientReady] = useState(false);
+  const isClientReady = useSyncExternalStore(
+    subscribeClientReady,
+    getClientReadySnapshot,
+    getServerReadySnapshot,
+  );
   const parseRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    setIsClientReady(true);
-  }, []);
 
   // 生成模式直接派生，避免在 effect 中触发额外渲染。
   const generateState = useMemo(() => {
