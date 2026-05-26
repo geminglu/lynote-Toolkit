@@ -103,7 +103,7 @@ export const BARCODE_SYMBOLOGY_META: Record<BarcodeSymbology, SymbologyMeta> = {
     label: "UPC-E",
     description: "UPC-A 的 6 位压缩形式，适合小型包装。",
     placeholder: "请输入 6 位或 8 位数字",
-    example: "01245678",
+    example: "01234565",
     linear: true,
     validate: (text) => {
       if (!/^\d{6,8}$/.test(text)) {
