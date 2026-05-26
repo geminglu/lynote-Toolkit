@@ -315,7 +315,8 @@ function normalizeHexColor(hex: string) {
 function buildBwipOptions(config: BarcodeToolConfig): BwipRenderOptions {
   const meta = getSymbologyMeta(config.symbology);
   const baseOptions: BwipRenderOptions = {
-    bcid: config.symbology,
+    bcid:
+      config.symbology === "codabar" ? "rationalizedCodabar" : config.symbology,
     text: config.text,
     scale: config.scale,
     includetext: meta.linear ? config.includeText : false,
