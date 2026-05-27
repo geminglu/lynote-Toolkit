@@ -41,6 +41,7 @@ function useBase64Tool() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestIdRef = useRef(0);
+  const fileReadRequestIdRef = useRef(0);
 
   useEffect(() => {
     const hasInput =
@@ -52,26 +53,16 @@ function useBase64Tool() {
     requestIdRef.current = requestId;
 
     if (!hasInput) {
-      const clearTimer = window.setTimeout(() => {
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-
-        setResult(null);
-        setError("");
-        setLoading(false);
-      }, 0);
-
-      return () => {
-        window.clearTimeout(clearTimer);
-      };
+      setResult(null);
+      setError("");
+      setLoading(false);
+      return;
     }
 
-    const loadingTimer = window.setTimeout(() => {
-      if (requestIdRef.current === requestId) {
-        setLoading(true);
-      }
-    }, 0);
+    // 输入或配置一变更就隐藏旧结果，避免用户复制到上一轮输出。
+    setResult(null);
+    setError("");
+    setLoading(true);
     const processTimer = window.setTimeout(() => {
       try {
         const nextResult = generateBase64ToolResult(config, fileState);
@@ -101,7 +92,6 @@ function useBase64Tool() {
     }, 120);
 
     return () => {
-      window.clearTimeout(loadingTimer);
       window.clearTimeout(processTimer);
     };
   }, [config, fileState]);
@@ -130,6 +120,7 @@ function useBase64Tool() {
     }));
 
     if (inputMode !== "file") {
+      fileReadRequestIdRef.current += 1;
       setFileState({
         file: null,
         bytes: null,
@@ -203,6 +194,7 @@ function useBase64Tool() {
   }, [config.inputMode]);
 
   const clearInput = useCallback(() => {
+    fileReadRequestIdRef.current += 1;
     setConfig((previousConfig) => ({
       ...previousConfig,
       input: "",
@@ -214,6 +206,7 @@ function useBase64Tool() {
   }, []);
 
   const resetToDefaults = useCallback(() => {
+    fileReadRequestIdRef.current += 1;
     setConfig(DEFAULT_BASE64_TOOL_CONFIG);
     setFileState({
       file: null,
@@ -222,11 +215,16 @@ function useBase64Tool() {
   }, []);
 
   const setSelectedFile = useCallback(async (file: File | null) => {
+    const requestId = fileReadRequestIdRef.current + 1;
+
+    fileReadRequestIdRef.current = requestId;
+
     if (!file) {
       setFileState({
         file: null,
         bytes: null,
       });
+      setLoading(false);
       return;
     }
 
@@ -235,14 +233,21 @@ function useBase64Tool() {
 
       setError(nextError);
       setResult(null);
+      setLoading(false);
       toast.error(nextError);
       return;
     }
 
     setLoading(true);
+    setResult(null);
+    setError("");
 
     try {
       const bytes = await readFileAsBytes(file);
+
+      if (fileReadRequestIdRef.current !== requestId) {
+        return;
+      }
 
       setFileState({
         file,
@@ -251,6 +256,10 @@ function useBase64Tool() {
       setError("");
       toast.success("文件已导入，结果将在当前页面内存中即时更新。");
     } catch (nextError) {
+      if (fileReadRequestIdRef.current !== requestId) {
+        return;
+      }
+
       const message =
         nextError instanceof Error ? nextError.message : "文件读取失败。";
 
@@ -262,15 +271,20 @@ function useBase64Tool() {
       setResult(null);
       toast.error(message);
     } finally {
-      setLoading(false);
+      if (fileReadRequestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const clearSelectedFile = useCallback(() => {
+    fileReadRequestIdRef.current += 1;
     setFileState({
       file: null,
       bytes: null,
     });
+    setResult(null);
+    setLoading(false);
   }, []);
 
   const copyOutput = useCallback(
