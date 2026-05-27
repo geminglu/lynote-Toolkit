@@ -53,16 +53,31 @@ function useBase64Tool() {
     requestIdRef.current = requestId;
 
     if (!hasInput) {
-      setResult(null);
-      setError("");
-      setLoading(false);
-      return;
+      const clearTimer = window.setTimeout(() => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+
+        setResult(null);
+        setError("");
+        setLoading(false);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(clearTimer);
+      };
     }
 
-    // 输入或配置一变更就隐藏旧结果，避免用户复制到上一轮输出。
-    setResult(null);
-    setError("");
-    setLoading(true);
+    const pendingTimer = window.setTimeout(() => {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      // 输入或配置一变更就隐藏旧结果，避免用户复制到上一轮输出。
+      setResult(null);
+      setError("");
+      setLoading(true);
+    }, 0);
     const processTimer = window.setTimeout(() => {
       try {
         const nextResult = generateBase64ToolResult(config, fileState);
@@ -92,6 +107,7 @@ function useBase64Tool() {
     }, 120);
 
     return () => {
+      window.clearTimeout(pendingTimer);
       window.clearTimeout(processTimer);
     };
   }, [config, fileState]);
