@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "lynote-ui/sonner";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type {
   JwtDebuggerConfig,
@@ -24,8 +24,13 @@ function useJwtDebugger() {
   const [result, setResult] = useState<JwtDebuggerResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestIdRef = useRef(0);
+  const activeRequestIdRef = useRef<number | null>(null);
 
   const clearTransientState = useCallback(() => {
+    requestIdRef.current += 1;
+    activeRequestIdRef.current = null;
+    setLoading(false);
     setResult(null);
     setError("");
   }, []);
@@ -97,17 +102,29 @@ function useJwtDebugger() {
   }, [clearTransientState]);
 
   const execute = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+
+    requestIdRef.current = requestId;
+    activeRequestIdRef.current = requestId;
     setLoading(true);
     setError("");
 
     try {
       const nextResult = await executeJwtDebugger(config);
 
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       setResult(nextResult);
       toast.success(
         `${config.verificationEnabled ? "JWT 解析与验签" : "JWT 解析"}已完成，当前结果仅保留在本页面内存中。`,
       );
     } catch (executionError) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       const nextError =
         executionError instanceof Error
           ? executionError.message
@@ -117,7 +134,10 @@ function useJwtDebugger() {
       setResult(null);
       toast.error(nextError);
     } finally {
-      setLoading(false);
+      if (activeRequestIdRef.current === requestId) {
+        activeRequestIdRef.current = null;
+        setLoading(false);
+      }
     }
   }, [config]);
 

@@ -153,6 +153,7 @@ function useJsonFormatting() {
         if (result.ok) {
           nextRightValue = result.value;
         } else {
+          nextRightValue = "";
           nextError = result.error;
         }
       }

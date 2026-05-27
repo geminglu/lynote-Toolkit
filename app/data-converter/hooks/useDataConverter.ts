@@ -57,6 +57,7 @@ function useDataConverter() {
         return;
       }
 
+      setRightValue("");
       setLeftError(result.error);
     }, 250);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "lynote-ui/sonner";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type {
   GeneratorAlgorithm,
@@ -77,29 +77,45 @@ function useHashGenerator() {
   const [result, setResult] = useState<HashGenerationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestIdRef = useRef(0);
+  const activeRequestIdRef = useRef<number | null>(null);
 
-  const updateInputType = useCallback((inputType: HashInputType) => {
-    setConfig((previousConfig) =>
-      createConfigByInputType(inputType, previousConfig),
-    );
+  const clearTransientState = useCallback(() => {
+    requestIdRef.current += 1;
+    activeRequestIdRef.current = null;
+    setLoading(false);
     setResult(null);
     setError("");
   }, []);
 
-  const updateMode = useCallback((mode: HashMode) => {
-    setConfig((previousConfig) => createConfigByMode(mode, previousConfig));
-    setResult(null);
-    setError("");
-  }, []);
+  const updateInputType = useCallback(
+    (inputType: HashInputType) => {
+      setConfig((previousConfig) =>
+        createConfigByInputType(inputType, previousConfig),
+      );
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const updateEncoding = useCallback((encoding: HashEncoding) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      encoding,
-    }));
-    setResult(null);
-    setError("");
-  }, []);
+  const updateMode = useCallback(
+    (mode: HashMode) => {
+      setConfig((previousConfig) => createConfigByMode(mode, previousConfig));
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
+
+  const updateEncoding = useCallback(
+    (encoding: HashEncoding) => {
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        encoding,
+      }));
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
   const toggleAlgorithm = useCallback(
     (algorithm: HashAlgorithm | HmacAlgorithm) => {
@@ -107,64 +123,71 @@ function useHashGenerator() {
         ...previousConfig,
         algorithms: toggleAlgorithmInList(previousConfig.algorithms, algorithm),
       }));
-      setResult(null);
-      setError("");
+      clearTransientState();
     },
-    [],
+    [clearTransientState],
   );
 
-  const updateText = useCallback((text: string) => {
-    setConfig((previousConfig) =>
-      previousConfig.inputType === "text"
-        ? {
-            ...previousConfig,
-            text,
-          }
-        : previousConfig,
-    );
-    setResult(null);
-    setError("");
-  }, []);
+  const updateText = useCallback(
+    (text: string) => {
+      setConfig((previousConfig) =>
+        previousConfig.inputType === "text"
+          ? {
+              ...previousConfig,
+              text,
+            }
+          : previousConfig,
+      );
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const updateExpectedHash = useCallback((expectedHash: string) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      expectedHash,
-    }));
-    setResult(null);
-    setError("");
-  }, []);
+  const updateExpectedHash = useCallback(
+    (expectedHash: string) => {
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        expectedHash,
+      }));
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const updateSecret = useCallback((secret: string) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      secret,
-    }));
-    setResult(null);
-    setError("");
-  }, []);
+  const updateSecret = useCallback(
+    (secret: string) => {
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        secret,
+      }));
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const setSelectedFile = useCallback((file: File | null) => {
-    if (file && file.size > MAX_FILE_SIZE_BYTES) {
-      const nextError = `文件大小超出限制，当前仅支持不超过 ${formatFileSize(MAX_FILE_SIZE_BYTES)} 的单文件。`;
+  const setSelectedFile = useCallback(
+    (file: File | null) => {
+      clearTransientState();
 
-      setError(nextError);
-      setResult(null);
-      toast.error(nextError);
-      return;
-    }
+      if (file && file.size > MAX_FILE_SIZE_BYTES) {
+        const nextError = `文件大小超出限制，当前仅支持不超过 ${formatFileSize(MAX_FILE_SIZE_BYTES)} 的单文件。`;
 
-    setConfig((previousConfig) =>
-      previousConfig.inputType === "file"
-        ? {
-            ...previousConfig,
-            file,
-          }
-        : previousConfig,
-    );
-    setResult(null);
-    setError("");
-  }, []);
+        setError(nextError);
+        toast.error(nextError);
+        return;
+      }
+
+      setConfig((previousConfig) =>
+        previousConfig.inputType === "file"
+          ? {
+              ...previousConfig,
+              file,
+            }
+          : previousConfig,
+      );
+    },
+    [clearTransientState],
+  );
 
   const clearSelectedFile = useCallback(() => {
     setConfig((previousConfig) =>
@@ -175,33 +198,42 @@ function useHashGenerator() {
           }
         : previousConfig,
     );
-    setResult(null);
-    setError("");
-  }, []);
+    clearTransientState();
+  }, [clearTransientState]);
 
   const resetToDefaults = useCallback(() => {
     setConfig(DEFAULT_HASH_GENERATOR_CONFIG);
-    setResult(null);
-    setError("");
-  }, []);
+    clearTransientState();
+  }, [clearTransientState]);
 
   const clearResult = useCallback(() => {
-    setResult(null);
-    setError("");
-  }, []);
+    clearTransientState();
+  }, [clearTransientState]);
 
   const generate = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+
+    requestIdRef.current = requestId;
+    activeRequestIdRef.current = requestId;
     setLoading(true);
     setError("");
 
     try {
       const nextResult = await generateHashResult(config);
 
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       setResult(nextResult);
       toast.success(
         `${config.mode === "hmac" ? "HMAC" : "哈希"} 结果已生成，当前结果仅保留在本页面内存中。`,
       );
     } catch (generationError) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       const nextError =
         generationError instanceof Error
           ? generationError.message
@@ -211,7 +243,10 @@ function useHashGenerator() {
       setResult(null);
       toast.error(nextError);
     } finally {
-      setLoading(false);
+      if (activeRequestIdRef.current === requestId) {
+        activeRequestIdRef.current = null;
+        setLoading(false);
+      }
     }
   }, [config]);
 
