@@ -57,6 +57,7 @@ const ResultPanel: FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-medium">当前生成表达式</div>
             <Button
+              disabled={hasDanger}
               onClick={copyExpression}
               size="sm"
               type="button"

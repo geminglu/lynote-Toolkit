@@ -35,13 +35,13 @@ const YEAR_MIN = 1970;
 const YEAR_MAX = 2099;
 
 const WEEKDAY_LABELS: Record<number, string> = {
-  1: "周一",
-  2: "周二",
-  3: "周三",
-  4: "周四",
-  5: "周五",
-  6: "周六",
-  7: "周日",
+  1: "周日",
+  2: "周一",
+  3: "周二",
+  4: "周三",
+  5: "周四",
+  6: "周五",
+  7: "周六",
 };
 
 function createNumberOptions(
@@ -118,7 +118,7 @@ export const CRON_FIELD_META: Record<CronFieldKey, CronFieldMeta> = {
     unit: "天",
     min: 1,
     max: 7,
-    defaultValue: "1",
+    defaultValue: "2",
     defaultStep: "1",
     options: createNumberOptions(1, 7, (value) => WEEKDAY_LABELS[value]),
     supportsUnspecified: true,
@@ -139,7 +139,7 @@ export const CRON_FIELD_META: Record<CronFieldKey, CronFieldMeta> = {
 export const CRON_PRESET_OPTIONS = [
   { id: "daily-9", label: "每天 09:00", expression: "0 0 9 * * ? *" },
   { id: "every-5-minutes", label: "每 5 分钟", expression: "0 0/5 * * * ? *" },
-  { id: "weekday-930", label: "工作日 09:30", expression: "0 30 9 ? * 1-5 *" },
+  { id: "weekday-930", label: "工作日 09:30", expression: "0 30 9 ? * 2-6 *" },
   { id: "monthly-first", label: "每月 1 日", expression: "0 0 0 1 * ? *" },
   { id: "yearly", label: "每年 1 月 1 日", expression: "0 0 0 1 1 ? *" },
 ];
@@ -326,7 +326,7 @@ export function parseCronExpression(expression: string): ParseResult {
         createIssue(
           "day-strategy",
           "danger",
-          "日期字段和星期字段必须有且只有一个为 ?。例如：0 30 9 ? * 1-5 *。",
+          "日期字段和星期字段必须有且只有一个为 ?。例如：0 30 9 ? * 2-6 *。",
         ),
       ],
     };
@@ -562,7 +562,7 @@ function validateRange(
   const startNumber = Number(start);
   const endNumber = Number(end);
 
-  if (issues.length === 0 && startNumber > endNumber) {
+  if (issues.length === 0 && meta.key === "year" && startNumber > endNumber) {
     issues.push(
       createIssue(
         `${meta.key}-range-order`,

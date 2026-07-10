@@ -21,6 +21,7 @@ import type { CronFieldKey, CronFieldMode } from "../type";
 import {
   CRON_FIELD_META,
   CRON_FIELD_MODE_OPTIONS,
+  CRON_FIELD_ORDER,
   CRON_PRESET_OPTIONS,
 } from "../utils";
 
@@ -38,10 +39,17 @@ function getStepOptions(fieldKey: CronFieldKey) {
 }
 
 const FieldControl: FC<FieldControlProps> = ({ fieldKey }) => {
-  const { state, updateFieldMode, updateFieldValue, toggleSpecificValue } =
-    useCronToolContext();
+  const {
+    state,
+    generatedExpression,
+    updateFieldMode,
+    updateFieldValue,
+    toggleSpecificValue,
+  } = useCronToolContext();
   const meta = CRON_FIELD_META[fieldKey];
   const field = state.fields[fieldKey];
+  const fieldExpression =
+    generatedExpression.split(" ")[CRON_FIELD_ORDER.indexOf(fieldKey)];
   const selectedValues = new Set(field.values.split(",").filter(Boolean));
   const usesTextInput = fieldKey === "year";
 
@@ -53,19 +61,7 @@ const FieldControl: FC<FieldControlProps> = ({ fieldKey }) => {
           <h3 className="text-sm font-medium">{meta.label}</h3>
         </div>
         <code className="rounded bg-muted px-2 py-1 text-xs">
-          {field.mode === "unspecified"
-            ? "?"
-            : state.expression.split(" ")[
-                [
-                  "second",
-                  "minute",
-                  "hour",
-                  "dayOfMonth",
-                  "month",
-                  "dayOfWeek",
-                  "year",
-                ].indexOf(fieldKey)
-              ]}
+          {fieldExpression}
         </code>
       </div>
 
