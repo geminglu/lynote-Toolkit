@@ -21,6 +21,7 @@ export type ToolIconKey =
   | "barcode"
   | "binary"
   | "color"
+  | "cron"
   | "data"
   | "diff"
   | "hash"
@@ -47,6 +48,25 @@ export type ToolRouteConfig = {
 };
 
 export const TOOL_ROUTE_CONFIGS: ToolRouteConfig[] = [
+  {
+    route: "/cron-tool",
+    readmePath: "/app/cron-tool/README.md",
+    title: "Cron 表达式生成器",
+    shortTitle: "Cron 生成器",
+    description:
+      "简体中文 cron 可视化生成与解析工具，支持秒、分、时、日、月、周、年字段选择，生成 7 字段表达式和人类可读描述。",
+    keywords: [
+      "Cron 表达式生成器",
+      "Cron 在线生成",
+      "Cron 表达式解析",
+      "Quartz Cron",
+      "Cron 中文描述",
+      "定时表达式工具",
+    ],
+    category: "数据处理",
+    chip: "可视化生成",
+    iconKey: "cron",
+  },
   {
     route: "/diff-tool",
     readmePath: "/app/diff-tool/README.md",
