@@ -29,7 +29,10 @@ const HistorySidebarContent: FC = () => {
     activeRecordId,
     createDraft,
     deleteRecord,
+    hasMoreRecords,
     loading,
+    loadingMore,
+    loadMoreRecords,
     records,
     selectRecord,
   } = useJsonFormattingContext();
@@ -65,7 +68,9 @@ const HistorySidebarContent: FC = () => {
 
       <div className="px-3 pt-3 pb-2">
         <div className="text-xs text-muted-foreground">
-          {collapsed ? `记 ${records.length}` : `历史记录 ${records.length} 条`}
+          {collapsed
+            ? `记 ${records.length}${hasMoreRecords ? "+" : ""}`
+            : `历史记录 ${records.length}${hasMoreRecords ? "+" : ""} 条`}
         </div>
       </div>
 
@@ -131,6 +136,20 @@ const HistorySidebarContent: FC = () => {
               </div>
             );
           })}
+
+          {hasMoreRecords && (
+            <Button
+              disabled={loadingMore}
+              onClick={() => {
+                void loadMoreRecords();
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {collapsed ? "…" : loadingMore ? "加载中…" : "加载更多"}
+            </Button>
+          )}
         </div>
       </ScrollArea>
 

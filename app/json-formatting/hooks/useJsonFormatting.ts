@@ -2,6 +2,7 @@ import { toast } from "lynote-ui/sonner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsonFormattingDb } from "../db";
 import type { EditorSide, JsonHistoryRecord, JsonSortOrder } from "../type";
+import type { JsonTransformResult } from "../utils";
 import {
   buildHistoryRecord,
   compressJsonText,
@@ -14,6 +15,8 @@ import {
   sortHistoryRecords,
   sortJsonText,
 } from "../utils";
+import type { JsonFormattingWorkerResponse } from "../worker-types";
+
 type WorkspaceState = {
   activeRecordId: string | null;
   leftValue: string;
@@ -31,7 +34,10 @@ const INITIAL_WORKSPACE_STATE: WorkspaceState = {
   rightSortOrder: "none",
 };
 
+const HISTORY_PAGE_SIZE = 20;
+const HISTORY_RECORD_LIMIT = 100;
 const PERSIST_DELAY = 400;
+const PREVIEW_DELAY = 350;
 
 function getNextSortOrder(
   currentOrder: JsonSortOrder,
@@ -46,6 +52,8 @@ function getNextSortOrder(
 function useJsonFormatting() {
   const [records, setRecords] = useState<JsonHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreRecords, setHasMoreRecords] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceState>(
     INITIAL_WORKSPACE_STATE,
   );
@@ -53,28 +61,118 @@ function useJsonFormatting() {
   const recordsRef = useRef(records);
   const persistTimerRef = useRef<number | null>(null);
   const pendingRecordRef = useRef<JsonHistoryRecord | null>(null);
+  const persistErrorShownRef = useRef(false);
+  const previewTimerRef = useRef<number | null>(null);
+  const previewRequestIdRef = useRef(0);
+  const previewValueRef = useRef("");
+  const workerRef = useRef<Worker | null>(null);
+  const historyOperationRef = useRef<Promise<void>>(Promise.resolve());
+
   useEffect(() => {
     workspaceRef.current = workspace;
   }, [workspace]);
+
   useEffect(() => {
     recordsRef.current = records;
   }, [records]);
+  const updateWorkspace = useCallback((nextWorkspace: WorkspaceState) => {
+    workspaceRef.current = nextWorkspace;
+    setWorkspace(nextWorkspace);
+  }, []);
+
+  /**
+   * 历史记录读写必须串行，避免分页查询的旧快照覆盖防抖保存后的最新列表。
+   */
+  const runHistoryOperation = useCallback(
+    <Result>(operation: () => Promise<Result>): Promise<Result> => {
+      const result = historyOperationRef.current.then(operation, operation);
+      historyOperationRef.current = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    },
+    [],
+  );
+
+  const upsertLoadedRecord = useCallback((record: JsonHistoryRecord) => {
+    const visibleLimit = Math.max(HISTORY_PAGE_SIZE, recordsRef.current.length);
+    const nextRecords = sortHistoryRecords([
+      record,
+      ...recordsRef.current.filter((item) => item.id !== record.id),
+    ]).slice(0, visibleLimit);
+
+    recordsRef.current = nextRecords;
+    setRecords(nextRecords);
+    return nextRecords;
+  }, []);
+
+  const trimHistoryRecords = useCallback(async () => {
+    const overflowIds = await jsonFormattingDb.history
+      .orderBy("updatedAt")
+      .reverse()
+      .offset(HISTORY_RECORD_LIMIT)
+      .primaryKeys();
+
+    if (overflowIds.length > 0) {
+      await jsonFormattingDb.history.bulkDelete(overflowIds);
+    }
+  }, []);
+
+  const persistRecord = useCallback(
+    (record: JsonHistoryRecord) =>
+      runHistoryOperation(async () => {
+        try {
+          await jsonFormattingDb.transaction(
+            "rw",
+            jsonFormattingDb.history,
+            async () => {
+              await jsonFormattingDb.history.put(record);
+              await trimHistoryRecords();
+            },
+          );
+
+          const nextRecords = upsertLoadedRecord(record);
+          const totalCount = await jsonFormattingDb.history.count();
+          setHasMoreRecords(totalCount > nextRecords.length);
+
+          if (persistErrorShownRef.current) {
+            persistErrorShownRef.current = false;
+            toast.success("本地历史记录已恢复保存");
+          }
+        } catch (error) {
+          if (!persistErrorShownRef.current) {
+            persistErrorShownRef.current = true;
+            toast.error(
+              error instanceof Error
+                ? `历史记录保存失败：${error.message}`
+                : "历史记录保存失败，请检查浏览器存储权限或空间",
+            );
+          }
+        }
+      }),
+    [runHistoryOperation, trimHistoryRecords, upsertLoadedRecord],
+  );
+
   const flushPendingPersist = useCallback(async () => {
-    if (persistTimerRef.current) {
+    if (persistTimerRef.current !== null) {
       window.clearTimeout(persistTimerRef.current);
       persistTimerRef.current = null;
     }
+
     const record = pendingRecordRef.current;
     if (!record) {
       return;
     }
+
     pendingRecordRef.current = null;
-    await jsonFormattingDb.history.put(record);
-  }, []);
+    await persistRecord(record);
+  }, [persistRecord]);
+
   const schedulePersist = useCallback(
     (record: JsonHistoryRecord) => {
       pendingRecordRef.current = record;
-      if (persistTimerRef.current) {
+      if (persistTimerRef.current !== null) {
         window.clearTimeout(persistTimerRef.current);
       }
       persistTimerRef.current = window.setTimeout(() => {
@@ -83,101 +181,274 @@ function useJsonFormatting() {
     },
     [flushPendingPersist],
   );
+
   useEffect(() => {
+    let active = true;
+
     void (async () => {
       try {
-        const savedRecords = await jsonFormattingDb.history
-          .orderBy("updatedAt")
-          .reverse()
-          .toArray();
-        setRecords(savedRecords);
+        await runHistoryOperation(async () => {
+          await jsonFormattingDb.transaction(
+            "rw",
+            jsonFormattingDb.history,
+            trimHistoryRecords,
+          );
+          const savedRecords = await jsonFormattingDb.history
+            .orderBy("updatedAt")
+            .reverse()
+            .limit(HISTORY_PAGE_SIZE)
+            .toArray();
+          const totalCount = await jsonFormattingDb.history.count();
+
+          if (active) {
+            recordsRef.current = savedRecords;
+            setRecords(savedRecords);
+            setHasMoreRecords(totalCount > savedRecords.length);
+          }
+        });
+      } catch (error) {
+        if (active) {
+          toast.error(
+            error instanceof Error
+              ? `历史记录读取失败：${error.message}`
+              : "历史记录读取失败，请检查浏览器存储权限",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     })();
+
     return () => {
+      active = false;
       void flushPendingPersist();
     };
-  }, [flushPendingPersist]);
-  const upsertRecord = useCallback(
-    (record: JsonHistoryRecord) => {
-      setRecords((previousRecords) =>
-        sortHistoryRecords([
-          record,
-          ...previousRecords.filter((item) => item.id !== record.id),
-        ]),
+  }, [flushPendingPersist, runHistoryOperation, trimHistoryRecords]);
+
+  const loadMoreRecords = useCallback(async () => {
+    if (loadingMore || !hasMoreRecords) {
+      return;
+    }
+
+    setLoadingMore(true);
+    try {
+      await runHistoryOperation(async () => {
+        const loadedCount = recordsRef.current.length;
+        const nextPage = await jsonFormattingDb.history
+          .orderBy("updatedAt")
+          .reverse()
+          .offset(loadedCount)
+          .limit(HISTORY_PAGE_SIZE)
+          .toArray();
+        const nextRecords = sortHistoryRecords([
+          ...recordsRef.current,
+          ...nextPage,
+        ]).filter(
+          (record, index, recordsToFilter) =>
+            recordsToFilter.findIndex((item) => item.id === record.id) ===
+            index,
+        );
+        const totalCount = await jsonFormattingDb.history.count();
+
+        recordsRef.current = nextRecords;
+        setRecords(nextRecords);
+        setHasMoreRecords(totalCount > nextRecords.length);
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? `加载更多历史记录失败：${error.message}`
+          : "加载更多历史记录失败",
       );
-      schedulePersist(record);
-    },
-    [schedulePersist],
-  );
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMoreRecords, loadingMore, runHistoryOperation]);
+
   const persistValues = useCallback(
     (leftValue: string, rightValue: string) => {
       const currentWorkspace = workspaceRef.current;
-      const currentRecord = recordsRef.current.find(
-        (item) => item.id === currentWorkspace.activeRecordId,
-      );
+      const currentRecord =
+        recordsRef.current.find(
+          (item) => item.id === currentWorkspace.activeRecordId,
+        ) ??
+        (pendingRecordRef.current?.id === currentWorkspace.activeRecordId
+          ? pendingRecordRef.current
+          : null);
       const now = Date.now();
       const recordId = currentWorkspace.activeRecordId ?? crypto.randomUUID();
-      const createdAt = currentRecord?.createdAt ?? now;
       const nextRecord = buildHistoryRecord({
         id: recordId,
         leftValue,
         rightValue,
-        createdAt,
+        createdAt: currentRecord?.createdAt ?? now,
         updatedAt: now,
       });
+
       if (!currentWorkspace.activeRecordId) {
-        setWorkspace((previousWorkspace) => ({
-          ...previousWorkspace,
+        updateWorkspace({
+          ...currentWorkspace,
           activeRecordId: recordId,
-        }));
+        });
       }
-      upsertRecord(nextRecord);
+      schedulePersist(nextRecord);
     },
-    [upsertRecord],
+    [schedulePersist, updateWorkspace],
   );
+
+  const applyPreviewResult = useCallback(
+    (leftValue: string, result: JsonTransformResult) => {
+      const currentWorkspace = workspaceRef.current;
+      if (currentWorkspace.leftValue !== leftValue) {
+        return;
+      }
+
+      const nextRightValue = result.ok
+        ? result.value
+        : currentWorkspace.rightValue;
+      const nextWorkspace: WorkspaceState = {
+        activeRecordId: currentWorkspace.activeRecordId,
+        leftValue,
+        rightValue: nextRightValue,
+        leftError: result.ok ? "" : result.error,
+        leftSortOrder: "none",
+        rightSortOrder: "none",
+      };
+
+      updateWorkspace(nextWorkspace);
+      if (leftValue || nextRightValue || currentWorkspace.activeRecordId) {
+        persistValues(leftValue, nextRightValue);
+      }
+    },
+    [persistValues, updateWorkspace],
+  );
+
+  const cancelPendingPreview = useCallback(() => {
+    previewRequestIdRef.current += 1;
+    if (previewTimerRef.current !== null) {
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+  }, []);
+
+  const schedulePreview = useCallback(
+    (leftValue: string) => {
+      cancelPendingPreview();
+      previewValueRef.current = leftValue;
+      const requestId = previewRequestIdRef.current;
+
+      previewTimerRef.current = window.setTimeout(() => {
+        previewTimerRef.current = null;
+
+        if (!leftValue.trim()) {
+          applyPreviewResult(leftValue, { ok: true, value: "" });
+          return;
+        }
+
+        const worker = workerRef.current;
+        if (worker) {
+          worker.postMessage({ requestId, value: leftValue });
+          return;
+        }
+
+        // Worker 不可用时仍只在输入停顿后回退到主线程，避免逐键阻塞。
+        window.setTimeout(() => {
+          if (requestId === previewRequestIdRef.current) {
+            applyPreviewResult(leftValue, formatJsonText(leftValue, 2));
+          }
+        }, 0);
+      }, PREVIEW_DELAY);
+    },
+    [applyPreviewResult, cancelPendingPreview],
+  );
+
+  useEffect(() => {
+    const worker = new Worker(
+      new URL("../workers/json-formatting.worker.js", import.meta.url),
+      { type: "module" },
+    );
+    workerRef.current = worker;
+
+    worker.addEventListener(
+      "message",
+      (event: MessageEvent<JsonFormattingWorkerResponse>) => {
+        const { requestId, result, value } = event.data;
+        if (
+          requestId !== previewRequestIdRef.current ||
+          value !== previewValueRef.current
+        ) {
+          return;
+        }
+
+        applyPreviewResult(value, result);
+      },
+    );
+
+    worker.addEventListener("error", () => {
+      if (workerRef.current !== worker) {
+        return;
+      }
+
+      workerRef.current = null;
+      worker.terminate();
+      toast.error("后台格式化服务不可用，将在输入停顿后使用兼容模式");
+
+      const requestId = previewRequestIdRef.current;
+      const leftValue = previewValueRef.current;
+      window.setTimeout(() => {
+        if (
+          requestId === previewRequestIdRef.current &&
+          leftValue === previewValueRef.current
+        ) {
+          applyPreviewResult(leftValue, formatJsonText(leftValue, 2));
+        }
+      }, 0);
+    });
+
+    return () => {
+      cancelPendingPreview();
+      workerRef.current = null;
+      worker.terminate();
+    };
+  }, [applyPreviewResult, cancelPendingPreview]);
+
   const commitLeftValue = useCallback(
     (nextLeftValue: string) => {
       const currentWorkspace = workspaceRef.current;
-      let nextRightValue = currentWorkspace.rightValue;
-      let nextError = "";
-      /**
-       * 左侧是主数据源。
-       * 只要左侧 JSON 合法，就直接重新生成右侧内容并覆盖右侧的手动编辑结果。
-       */
-      if (!nextLeftValue.trim()) {
-        nextRightValue = "";
-      } else {
-        const result = formatJsonText(nextLeftValue, 2);
-        if (result.ok) {
-          nextRightValue = result.value;
-        } else {
-          nextError = result.error;
-        }
-      }
-      setWorkspace({
+      const nextWorkspace: WorkspaceState = {
         activeRecordId: currentWorkspace.activeRecordId,
         leftValue: nextLeftValue,
-        rightValue: nextRightValue,
-        leftError: nextError,
+        rightValue: nextLeftValue.trim() ? currentWorkspace.rightValue : "",
+        leftError: "",
         leftSortOrder: "none",
         rightSortOrder: "none",
-      });
-      if (nextLeftValue || nextRightValue || currentWorkspace.activeRecordId) {
-        persistValues(nextLeftValue, nextRightValue);
+      };
+
+      updateWorkspace(nextWorkspace);
+      schedulePreview(nextLeftValue);
+      if (
+        nextLeftValue ||
+        nextWorkspace.rightValue ||
+        currentWorkspace.activeRecordId
+      ) {
+        persistValues(nextLeftValue, nextWorkspace.rightValue);
       }
     },
-    [persistValues],
+    [persistValues, schedulePreview, updateWorkspace],
   );
+
   const commitRightValue = useCallback(
     (nextRightValue: string) => {
       const currentWorkspace = workspaceRef.current;
-      setWorkspace({
+      const nextWorkspace: WorkspaceState = {
         ...currentWorkspace,
         rightValue: nextRightValue,
         rightSortOrder: "none",
-      });
+      };
+
+      updateWorkspace(nextWorkspace);
       if (
         currentWorkspace.leftValue ||
         nextRightValue ||
@@ -186,20 +457,25 @@ function useJsonFormatting() {
         persistValues(currentWorkspace.leftValue, nextRightValue);
       }
     },
-    [persistValues],
+    [persistValues, updateWorkspace],
   );
+
   const createDraft = useCallback(() => {
+    cancelPendingPreview();
     void flushPendingPersist();
-    setWorkspace(INITIAL_WORKSPACE_STATE);
-  }, [flushPendingPersist]);
+    updateWorkspace(INITIAL_WORKSPACE_STATE);
+  }, [cancelPendingPreview, flushPendingPersist, updateWorkspace]);
+
   const selectRecord = useCallback(
     (recordId: string) => {
       const record = recordsRef.current.find((item) => item.id === recordId);
       if (!record) {
         return;
       }
+
+      cancelPendingPreview();
       void flushPendingPersist();
-      setWorkspace({
+      updateWorkspace({
         activeRecordId: record.id,
         leftValue: record.leftValue,
         rightValue: record.rightValue,
@@ -208,34 +484,64 @@ function useJsonFormatting() {
         rightSortOrder: "none",
       });
     },
-    [flushPendingPersist],
+    [cancelPendingPreview, flushPendingPersist, updateWorkspace],
   );
+
   const deleteRecord = useCallback(
     async (recordId: string) => {
       await flushPendingPersist();
-      await jsonFormattingDb.history.delete(recordId);
-      const nextRecords = recordsRef.current.filter(
-        (item) => item.id !== recordId,
-      );
-      setRecords(nextRecords);
-      if (workspaceRef.current.activeRecordId === recordId) {
-        const fallbackRecord = sortHistoryRecords(nextRecords)[0];
-        if (fallbackRecord) {
-          setWorkspace({
-            activeRecordId: fallbackRecord.id,
-            leftValue: fallbackRecord.leftValue,
-            rightValue: fallbackRecord.rightValue,
-            leftError: getLeftEditorError(fallbackRecord.leftValue),
-            leftSortOrder: "none",
-            rightSortOrder: "none",
-          });
-        } else {
-          setWorkspace(INITIAL_WORKSPACE_STATE);
-        }
+
+      try {
+        await runHistoryOperation(async () => {
+          await jsonFormattingDb.history.delete(recordId);
+          const visibleLimit = Math.max(
+            HISTORY_PAGE_SIZE,
+            recordsRef.current.length,
+          );
+          const nextRecords = await jsonFormattingDb.history
+            .orderBy("updatedAt")
+            .reverse()
+            .limit(visibleLimit)
+            .toArray();
+          const totalCount = await jsonFormattingDb.history.count();
+
+          recordsRef.current = nextRecords;
+          setRecords(nextRecords);
+          setHasMoreRecords(totalCount > nextRecords.length);
+
+          if (workspaceRef.current.activeRecordId === recordId) {
+            cancelPendingPreview();
+            const fallbackRecord = nextRecords[0];
+            updateWorkspace(
+              fallbackRecord
+                ? {
+                    activeRecordId: fallbackRecord.id,
+                    leftValue: fallbackRecord.leftValue,
+                    rightValue: fallbackRecord.rightValue,
+                    leftError: getLeftEditorError(fallbackRecord.leftValue),
+                    leftSortOrder: "none",
+                    rightSortOrder: "none",
+                  }
+                : INITIAL_WORKSPACE_STATE,
+            );
+          }
+        });
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? `历史记录删除失败：${error.message}`
+            : "历史记录删除失败",
+        );
       }
     },
-    [flushPendingPersist],
+    [
+      cancelPendingPreview,
+      flushPendingPersist,
+      runHistoryOperation,
+      updateWorkspace,
+    ],
   );
+
   const updateLeftValue = useCallback(
     (value: string) => {
       commitLeftValue(value);
@@ -265,7 +571,7 @@ function useJsonFormatting() {
       const result = formatJsonText(sourceValue, 2);
       if (!result.ok) {
         if (side === "left") {
-          setWorkspace({
+          updateWorkspace({
             ...currentWorkspace,
             leftError: result.error,
           });
@@ -274,7 +580,8 @@ function useJsonFormatting() {
         return;
       }
       if (side === "left") {
-        setWorkspace({
+        cancelPendingPreview();
+        updateWorkspace({
           activeRecordId: currentWorkspace.activeRecordId,
           leftValue: result.value,
           rightValue: result.value,
@@ -285,14 +592,14 @@ function useJsonFormatting() {
         persistValues(result.value, result.value);
         return;
       }
-      setWorkspace({
+      updateWorkspace({
         ...currentWorkspace,
         rightValue: result.value,
         rightSortOrder: "none",
       });
       persistValues(currentWorkspace.leftValue, result.value);
     },
-    [persistValues],
+    [cancelPendingPreview, persistValues, updateWorkspace],
   );
 
   /**
@@ -311,7 +618,7 @@ function useJsonFormatting() {
       const result = compressJsonText(sourceValue);
       if (!result.ok) {
         if (side === "left") {
-          setWorkspace({
+          updateWorkspace({
             ...currentWorkspace,
             leftError: result.error,
           });
@@ -325,7 +632,7 @@ function useJsonFormatting() {
       }
       commitRightValue(result.value);
     },
-    [commitLeftValue, commitRightValue],
+    [commitLeftValue, commitRightValue, updateWorkspace],
   );
 
   /**
@@ -390,7 +697,8 @@ function useJsonFormatting() {
       }
 
       if (side === "left") {
-        setWorkspace({
+        cancelPendingPreview();
+        updateWorkspace({
           activeRecordId: currentWorkspace.activeRecordId,
           leftValue: result.value,
           rightValue: result.value,
@@ -402,14 +710,14 @@ function useJsonFormatting() {
         return;
       }
 
-      setWorkspace({
+      updateWorkspace({
         ...currentWorkspace,
         rightValue: result.value,
         rightSortOrder: nextOrder,
       });
       persistValues(currentWorkspace.leftValue, result.value);
     },
-    [persistValues],
+    [cancelPendingPreview, persistValues, updateWorkspace],
   );
 
   /**
@@ -461,6 +769,8 @@ function useJsonFormatting() {
     () => ({
       records,
       loading,
+      loadingMore,
+      hasMoreRecords,
       activeRecordId: workspace.activeRecordId,
       leftValue: workspace.leftValue,
       rightValue: workspace.rightValue,
@@ -468,6 +778,7 @@ function useJsonFormatting() {
       leftSortOrder: workspace.leftSortOrder,
       rightSortOrder: workspace.rightSortOrder,
       createDraft,
+      loadMoreRecords,
       selectRecord,
       deleteRecord,
       updateLeftValue,
@@ -491,7 +802,10 @@ function useJsonFormatting() {
       escapeSide,
       sortSide,
       formatSide,
+      hasMoreRecords,
       loading,
+      loadingMore,
+      loadMoreRecords,
       records,
       selectRecord,
       updateLeftValue,

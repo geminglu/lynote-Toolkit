@@ -1,10 +1,19 @@
 "use client";
 
 import Editor, { loader } from "@monaco-editor/react";
-import type { editor } from "monaco-editor";
-import * as monaco from "monaco-editor";
+import type { editor, json } from "monaco-editor";
+import * as monaco from "monaco-editor/esm/vs/editor/editor.api.js";
+import * as jsonContribution from "monaco-editor/esm/vs/language/json/monaco.contribution.js";
 
 loader.config({ monaco });
+
+/**
+ * Monaco 的 ESM 声明没有暴露 JSON contribution 的运行时具名导出，
+ * 但精简入口也不会把它挂到 monaco.languages.json，因此在这里显式约束导出类型。
+ */
+const { jsonDefaults } = jsonContribution as unknown as {
+  jsonDefaults: typeof json.jsonDefaults;
+};
 
 (
   self as typeof self & {
@@ -70,8 +79,8 @@ export default function MonacoJsonEditor({
 }: MonacoJsonEditorProps) {
   return (
     <Editor
-      beforeMount={(monacoInstance) => {
-        monacoInstance.languages.json.jsonDefaults.setDiagnosticsOptions({
+      beforeMount={() => {
+        jsonDefaults.setDiagnosticsOptions({
           allowComments: false,
           enableSchemaRequest: false,
           validate: true,

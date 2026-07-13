@@ -60,7 +60,7 @@ const EditorPanel: FC<PropsType> = ({ side, title, description }) => {
   const { resolvedTheme } = useTheme();
 
   return (
-    <Card className="">
+    <Card className="flex min-h-[560px] flex-col lg:min-h-0">
       <CardHeader>
         <div className="">
           <CardTitle>{title}</CardTitle>
@@ -103,8 +103,8 @@ const EditorPanel: FC<PropsType> = ({ side, title, description }) => {
         />
       </CardHeader>
 
-      <CardContent className="min-h-0 flex-1 p-0">
-        <div className="h-full min-h-[420px]">
+      <CardContent className="flex min-h-0 flex-1 p-0">
+        <div className="h-full min-h-[420px] flex-1">
           <MonacoJsonEditor
             theme={resolvedTheme as "dark" | "light"}
             onChange={(nextValue) => {

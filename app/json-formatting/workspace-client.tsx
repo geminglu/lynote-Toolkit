@@ -1,7 +1,6 @@
 "use client";
 
 import MarkdownRenderer from "@/components/MarkdownRenderer";
-import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "lynote-ui/alert";
 import WorkspaceLayout from "../../components/WorkspaceLayout";
 import EditorPanel from "./components/editor-panel";
@@ -29,7 +28,7 @@ function JsonFormattingWorkspaceContent({
       }}
       sidebar={<HistorySidebar />}
     >
-      <div className="h-[calc(100vh-100px)] min-h-[calc(50vh)]">
+      <div className="flex min-h-0 flex-col gap-4 lg:h-[calc(100vh-100px)] lg:min-h-[50vh]">
         {leftError && (
           <Alert variant="destructive">
             <AlertTitle>左侧 JSON 解析失败</AlertTitle>
@@ -37,12 +36,7 @@ function JsonFormattingWorkspaceContent({
           </Alert>
         )}
 
-        <div
-          className={cn(
-            "grid h-full min-h-0 flex-1 gap-4",
-            "grid-cols-1 lg:grid-cols-2",
-          )}
-        >
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
           <EditorPanel
             description="这里是原始 JSON 输入区。左侧变化会驱动右侧重新生成格式化结果。"
             side="left"

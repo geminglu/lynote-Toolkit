@@ -15,12 +15,241 @@ export type JsonTransformResult = JsonTransformSuccess | JsonTransformFailure;
 type ParsedJsonSource =
   | {
       ok: true;
-      parsedValue: unknown;
+      parsedValue: JsonValueNode;
     }
   | {
       ok: false;
       error: string;
     };
+
+interface JsonArrayNode {
+  kind: "array";
+  items: JsonValueNode[];
+}
+
+interface JsonBooleanNode {
+  kind: "boolean";
+  value: boolean;
+}
+
+interface JsonNullNode {
+  kind: "null";
+}
+
+interface JsonNumberNode {
+  kind: "number";
+  rawValue: string;
+}
+
+interface JsonObjectNode {
+  kind: "object";
+  entries: [string, JsonValueNode][];
+}
+
+interface JsonStringNode {
+  kind: "string";
+  value: string;
+}
+
+type JsonValueNode =
+  | JsonArrayNode
+  | JsonBooleanNode
+  | JsonNullNode
+  | JsonNumberNode
+  | JsonObjectNode
+  | JsonStringNode;
+
+const JSON_NUMBER_PATTERN = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
+
+/**
+ * 原生 JSON.parse 会把数字立即转换成 number，无法安全承载 64 位整数。
+ * 这里仅构建格式化所需的轻量语法树，数字节点始终保存原始 token。
+ */
+class LosslessJsonParser {
+  private position = 0;
+
+  constructor(private readonly source: string) {}
+
+  parse(): JsonValueNode {
+    this.skipWhitespace();
+    const value = this.parseValue();
+    this.skipWhitespace();
+
+    if (this.position !== this.source.length) {
+      throw this.createError("存在多余内容");
+    }
+
+    return value;
+  }
+
+  private createError(message: string) {
+    return new SyntaxError(`${message}（位置 ${this.position + 1}）`);
+  }
+
+  private parseArray(): JsonArrayNode {
+    this.position += 1;
+    this.skipWhitespace();
+
+    const items: JsonValueNode[] = [];
+    if (this.source[this.position] === "]") {
+      this.position += 1;
+      return { kind: "array", items };
+    }
+
+    while (this.position < this.source.length) {
+      items.push(this.parseValue());
+      this.skipWhitespace();
+
+      const character = this.source[this.position];
+      if (character === "]") {
+        this.position += 1;
+        return { kind: "array", items };
+      }
+      if (character !== ",") {
+        throw this.createError("数组元素之间缺少逗号");
+      }
+
+      this.position += 1;
+      this.skipWhitespace();
+    }
+
+    throw this.createError("数组缺少结束符 ]");
+  }
+
+  private parseLiteral(
+    literal: "false" | "null" | "true",
+  ): JsonBooleanNode | JsonNullNode {
+    if (!this.source.startsWith(literal, this.position)) {
+      throw this.createError("无法识别的值");
+    }
+
+    this.position += literal.length;
+    if (literal === "null") {
+      return { kind: "null" };
+    }
+
+    return { kind: "boolean", value: literal === "true" };
+  }
+
+  private parseNumber(): JsonNumberNode {
+    const match = this.source.slice(this.position).match(JSON_NUMBER_PATTERN);
+    if (!match) {
+      throw this.createError("数字格式无效");
+    }
+
+    this.position += match[0].length;
+    return { kind: "number", rawValue: match[0] };
+  }
+
+  private parseObject(): JsonObjectNode {
+    this.position += 1;
+    this.skipWhitespace();
+
+    const entries: [string, JsonValueNode][] = [];
+    if (this.source[this.position] === "}") {
+      this.position += 1;
+      return { entries, kind: "object" };
+    }
+
+    while (this.position < this.source.length) {
+      if (this.source[this.position] !== '"') {
+        throw this.createError("对象 key 必须是双引号字符串");
+      }
+      const key = this.parseString().value;
+      this.skipWhitespace();
+
+      if (this.source[this.position] !== ":") {
+        throw this.createError("对象 key 后缺少冒号");
+      }
+      this.position += 1;
+      this.skipWhitespace();
+
+      entries.push([key, this.parseValue()]);
+      this.skipWhitespace();
+
+      const character = this.source[this.position];
+      if (character === "}") {
+        this.position += 1;
+        return { entries, kind: "object" };
+      }
+      if (character !== ",") {
+        throw this.createError("对象成员之间缺少逗号");
+      }
+
+      this.position += 1;
+      this.skipWhitespace();
+    }
+
+    throw this.createError("对象缺少结束符 }");
+  }
+
+  private parseString(): JsonStringNode {
+    const startPosition = this.position;
+    this.position += 1;
+
+    while (this.position < this.source.length) {
+      const character = this.source[this.position];
+
+      if (character === '"') {
+        this.position += 1;
+        const token = this.source.slice(startPosition, this.position);
+
+        try {
+          return { kind: "string", value: JSON.parse(token) as string };
+        } catch {
+          throw this.createError("字符串转义无效");
+        }
+      }
+
+      if (character === "\\") {
+        this.position += 2;
+        continue;
+      }
+
+      if (character.charCodeAt(0) < 0x20) {
+        throw this.createError("字符串包含未转义的控制字符");
+      }
+
+      this.position += 1;
+    }
+
+    throw this.createError("字符串缺少结束引号");
+  }
+
+  private parseValue(): JsonValueNode {
+    const character = this.source[this.position];
+
+    if (character === "{") {
+      return this.parseObject();
+    }
+    if (character === "[") {
+      return this.parseArray();
+    }
+    if (character === '"') {
+      return this.parseString();
+    }
+    if (character === "t") {
+      return this.parseLiteral("true");
+    }
+    if (character === "f") {
+      return this.parseLiteral("false");
+    }
+    if (character === "n") {
+      return this.parseLiteral("null");
+    }
+    if (character === "-" || (character >= "0" && character <= "9")) {
+      return this.parseNumber();
+    }
+
+    throw this.createError("无法识别的 JSON 值");
+  }
+
+  private skipWhitespace() {
+    while (" \t\r\n".includes(this.source[this.position] ?? "\0")) {
+      this.position += 1;
+    }
+  }
+}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "JSON 解析失败";
@@ -85,11 +314,15 @@ function isPlainStringCandidate(value: string) {
  * 4. 如果输入本身就是普通文本，则直接按字符串处理，
  *    让右侧可以立即显示为合法的 JSON 字符串。
  */
+function parseLosslessJson(value: string) {
+  return new LosslessJsonParser(value).parse();
+}
+
 function parseJsonSource(value: string): ParsedJsonSource {
   try {
-    const parsedValue = JSON.parse(value);
+    const parsedValue = parseLosslessJson(value);
 
-    if (typeof parsedValue !== "string") {
+    if (parsedValue.kind !== "string") {
       return {
         ok: true,
         parsedValue,
@@ -99,7 +332,7 @@ function parseJsonSource(value: string): ParsedJsonSource {
     try {
       return {
         ok: true,
-        parsedValue: JSON.parse(parsedValue),
+        parsedValue: parseLosslessJson(parsedValue.value),
       };
     } catch {
       return {
@@ -117,7 +350,10 @@ function parseJsonSource(value: string): ParsedJsonSource {
     if (isPlainStringCandidate(value)) {
       return {
         ok: true,
-        parsedValue: value,
+        parsedValue: {
+          kind: "string",
+          value,
+        },
       };
     }
 
@@ -128,8 +364,8 @@ function parseJsonSource(value: string): ParsedJsonSource {
   }
 }
 
-function isSortableJsonRoot(value: unknown) {
-  return Array.isArray(value) || (typeof value === "object" && value !== null);
+function isSortableJsonRoot(value: JsonValueNode) {
+  return value.kind === "array" || value.kind === "object";
 }
 
 function compareJsonKeys(
@@ -148,31 +384,86 @@ function compareJsonKeys(
   return firstKey < secondKey ? 1 : -1;
 }
 
+function serializeString(value: string) {
+  return JSON.stringify(value) ?? '""';
+}
+
+function normalizeSpace(space: number) {
+  if (!Number.isFinite(space)) {
+    return 0;
+  }
+
+  return Math.min(10, Math.max(0, Math.trunc(space)));
+}
+
 /**
- * 递归排序 JSON 对象的 key
- * @param value - JSON 对象
- * @param order - 排序顺序
- * @returns 排序后的 JSON 对象
+ * 对象直接按 entry 序列输出，避免整数形式的 key 被普通对象枚举规则重新排序。
  */
-function sortJsonKeysDeep(
-  value: unknown,
-  order: Exclude<JsonSortOrder, "none">,
-): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => sortJsonKeysDeep(item, order));
+function serializeJsonNode(
+  node: JsonValueNode,
+  space: number,
+  level = 0,
+  order?: Exclude<JsonSortOrder, "none">,
+): string {
+  if (node.kind === "null") {
+    return "null";
+  }
+  if (node.kind === "boolean") {
+    return node.value ? "true" : "false";
+  }
+  if (node.kind === "number") {
+    return node.rawValue;
+  }
+  if (node.kind === "string") {
+    return serializeString(node.value);
   }
 
-  if (typeof value !== "object" || value === null) {
-    return value;
+  const indentation = " ".repeat(normalizeSpace(space));
+  const currentIndentation = indentation.repeat(level);
+  const childIndentation = indentation.repeat(level + 1);
+
+  if (node.kind === "array") {
+    if (node.items.length === 0) {
+      return "[]";
+    }
+
+    const serializedItems = node.items.map((item) =>
+      serializeJsonNode(item, space, level + 1, order),
+    );
+    if (!indentation) {
+      return `[${serializedItems.join(",")}]`;
+    }
+
+    return `[\n${serializedItems
+      .map((item) => `${childIndentation}${item}`)
+      .join(",\n")}\n${currentIndentation}]`;
   }
 
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([firstKey], [secondKey]) =>
+  const entries = order
+    ? [...node.entries].sort(([firstKey], [secondKey]) =>
         compareJsonKeys(firstKey, secondKey, order),
       )
-      .map(([key, nestedValue]) => [key, sortJsonKeysDeep(nestedValue, order)]),
-  );
+    : node.entries;
+  if (entries.length === 0) {
+    return "{}";
+  }
+
+  const serializedEntries = entries.map(([key, nestedValue]) => {
+    const separator = indentation ? ": " : ":";
+    return `${serializeString(key)}${separator}${serializeJsonNode(
+      nestedValue,
+      space,
+      level + 1,
+      order,
+    )}`;
+  });
+  if (!indentation) {
+    return `{${serializedEntries.join(",")}}`;
+  }
+
+  return `{\n${serializedEntries
+    .map((entry) => `${childIndentation}${entry}`)
+    .join(",\n")}\n${currentIndentation}}`;
 }
 
 /**
@@ -190,7 +481,7 @@ export function formatJsonText(value: string, space = 2): JsonTransformResult {
 
   return {
     ok: true,
-    value: JSON.stringify(result.parsedValue, null, space),
+    value: serializeJsonNode(result.parsedValue, space),
   };
 }
 
@@ -208,7 +499,7 @@ export function compressJsonText(value: string): JsonTransformResult {
 
   return {
     ok: true,
-    value: JSON.stringify(result.parsedValue),
+    value: serializeJsonNode(result.parsedValue, 0),
   };
 }
 
@@ -236,11 +527,7 @@ export function sortJsonText(
 
   return {
     ok: true,
-    value: JSON.stringify(
-      sortJsonKeysDeep(result.parsedValue, order),
-      null,
-      space,
-    ),
+    value: serializeJsonNode(result.parsedValue, space, 0, order),
   };
 }
 
@@ -256,7 +543,7 @@ export function isEscapedJsonString(value: string) {
       return false;
     }
 
-    return JSON.stringify(parsedValue).replaceAll("/", "\\/") === value;
+    return typeof parsedValue === "string";
   } catch {
     return false;
   }
@@ -295,12 +582,14 @@ export function createHistoryTitle(
   rightValue: string,
   timestamp: number,
 ) {
-  const source = [leftValue, rightValue]
-    .map((item) => item.trim())
-    .find(Boolean);
+  const source = [leftValue, rightValue].find((item) => /\S/.test(item));
 
   if (source) {
-    return source.replace(/\s+/g, " ").slice(0, 28);
+    const contentStart = source.search(/\S/);
+    return source
+      .slice(contentStart, contentStart + 256)
+      .replace(/\s+/g, " ")
+      .slice(0, 28);
   }
 
   const formatter = new Intl.DateTimeFormat("zh-CN", {
