@@ -6,6 +6,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 <!-- END:nextjs-agent-rules -->
 
+Always respond in Chinese-simplified
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project Overview
 
 Next.js 16 static-site web app deployed to GitHub Pages. The site exports static tool pages (base64-tool, color-converter, json-formatting, jwt-debugger, etc.) — no SSR/ISR/API routes (`output: "export"` in `next.config.ts`).
