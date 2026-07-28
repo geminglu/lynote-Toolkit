@@ -81,24 +81,28 @@ const ResultPanel: FC = () => {
 
     const container = qrContainerRef.current;
 
-    if (!qrInstanceRef.current) {
-      qrInstanceRef.current = new QRCodeStyling(previewOptions);
-    } else {
-      qrInstanceRef.current.update(previewOptions);
-    }
+    const qrInstance = new QRCodeStyling(previewOptions);
 
-    if (container.childElementCount === 0) {
+    container.innerHTML = "";
+    qrInstance.append(container);
+    qrInstanceRef.current = qrInstance;
+
+    return () => {
+      if (qrInstanceRef.current === qrInstance) {
+        qrInstanceRef.current = null;
+      }
+
       container.innerHTML = "";
-      qrInstanceRef.current.append(container);
-    }
+    };
   }, [config.mode, previewOptions]);
 
   const handleDownloadImage = async () => {
-    if (!qrInstanceRef.current) {
+    if (!previewOptions) {
       return;
     }
 
-    const blob = await qrInstanceRef.current.getRawData(config.downloadFormat);
+    const qrInstance = new QRCodeStyling(previewOptions);
+    const blob = await qrInstance.getRawData(config.downloadFormat);
 
     if (!(blob instanceof Blob)) {
       toast.error("当前浏览器未返回可下载的二维码数据。");
@@ -110,11 +114,12 @@ const ResultPanel: FC = () => {
   };
 
   const handleCopyImage = async () => {
-    if (!qrInstanceRef.current) {
+    if (!previewOptions) {
       return;
     }
 
-    const blob = await qrInstanceRef.current.getRawData("png");
+    const qrInstance = new QRCodeStyling(previewOptions);
+    const blob = await qrInstance.getRawData("png");
 
     if (!(blob instanceof Blob)) {
       toast.error("当前浏览器未返回可复制的二维码图片。");
@@ -229,12 +234,12 @@ const ResultPanel: FC = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+                  <div className="mt-4 grid gap-4">
                     <div className="rounded-2xl border bg-muted/20 p-4">
                       <div className="text-sm font-medium">二维码预览</div>
                       <div
                         className={cn(
-                          "mt-3 flex min-h-[360px] items-center justify-center rounded-2xl border p-4",
+                          "mt-3 flex min-h-90 items-center justify-center rounded-2xl border p-4",
                           config.transparentBackground
                             ? "bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6)] bg-size-[24px_24px] bg-position-[0_0,12px_12px] dark:bg-[linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937),linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937)]"
                             : "",
@@ -293,7 +298,7 @@ const ResultPanel: FC = () => {
                       <div className="rounded-xl border p-4">
                         <div className="text-sm font-medium">原始编码内容</div>
                         <Textarea
-                          className="mt-3 min-h-[160px] font-mono text-xs"
+                          className="mt-3 min-h-40 font-mono text-xs"
                           readOnly
                           value={generateResult.payload}
                         />
@@ -452,7 +457,7 @@ const ResultPanel: FC = () => {
                     <div className="rounded-xl border p-4">
                       <div className="text-sm font-medium">原始编码内容</div>
                       <Textarea
-                        className="mt-3 min-h-[180px] font-mono text-xs"
+                        className="mt-3 min-h-45 font-mono text-xs"
                         readOnly
                         value={parseResult.rawValue}
                       />
