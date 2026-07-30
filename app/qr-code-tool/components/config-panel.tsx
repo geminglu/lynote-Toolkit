@@ -21,6 +21,7 @@ import { useRef, useState } from "react";
 import { useQrCodeToolContext } from "../hooks/useQrCodeToolContext";
 import type { QrCodeToolConfig, QrContentType, WifiEncryption } from "../type";
 import {
+  DEFAULT_QR_CODE_TOOL_CONFIG,
   MAX_LOGO_FILE_SIZE,
   MAX_PARSE_FILE_SIZE,
   QR_CONTENT_TYPE_OPTIONS,
@@ -135,7 +136,7 @@ const ConfigPanel: FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="qr-text-value">文本内容</Label>
                 <Textarea
-                  className="min-h-[180px] font-mono text-xs"
+                  className="min-h-45 font-mono text-xs"
                   id="qr-text-value"
                   onChange={(event) => {
                     updateConfig("textValue", event.target.value);
@@ -308,7 +309,7 @@ const ConfigPanel: FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="qr-email-body">邮件正文</Label>
                   <Textarea
-                    className="min-h-[120px] font-mono text-xs"
+                    className="min-h-30 font-mono text-xs"
                     id="qr-email-body"
                     onChange={(event) => {
                       updateConfig("emailBody", event.target.value);
@@ -320,268 +321,280 @@ const ConfigPanel: FC = () => {
               </div>
             )}
 
-            <div className="rounded-xl border p-4">
-              <div className="text-sm font-medium">样式设置</div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="qr-size">二维码尺寸（px）</Label>
-                  <Input
-                    id="qr-size"
-                    max={1024}
-                    min={160}
-                    onChange={(event) => {
-                      updateConfig("size", Number(event.target.value) || 320);
-                    }}
-                    type="number"
-                    value={config.size}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-margin">边距（px）</Label>
-                  <Input
-                    id="qr-margin"
-                    max={64}
-                    min={0}
-                    onChange={(event) => {
-                      updateConfig("margin", Number(event.target.value) || 0);
-                    }}
-                    type="number"
-                    value={config.margin}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-foreground">前景色</Label>
-                  <Input
-                    id="qr-foreground"
-                    onChange={(event) => {
-                      updateConfig("foregroundColor", event.target.value);
-                    }}
-                    type="color"
-                    value={config.foregroundColor}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-background">背景色</Label>
-                  <Input
-                    disabled={config.transparentBackground}
-                    id="qr-background"
-                    onChange={(event) => {
-                      updateConfig("backgroundColor", event.target.value);
-                    }}
-                    type="color"
-                    value={config.backgroundColor}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-dot-style">主体样式</Label>
-                  <NativeSelect
-                    id="qr-dot-style"
-                    onChange={(event) => {
-                      updateConfig(
-                        "dotStyle",
-                        event.target.value as QrCodeToolConfig["dotStyle"],
-                      );
-                    }}
-                    value={config.dotStyle}
-                  >
-                    {QR_DOT_STYLE_OPTIONS.map((option) => (
-                      <NativeSelectOption
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-corner-square-style">定位角外框</Label>
-                  <NativeSelect
-                    id="qr-corner-square-style"
-                    onChange={(event) => {
-                      updateConfig(
-                        "cornerSquareStyle",
-                        event.target
-                          .value as QrCodeToolConfig["cornerSquareStyle"],
-                      );
-                    }}
-                    value={config.cornerSquareStyle}
-                  >
-                    {QR_CORNER_SQUARE_OPTIONS.map((option) => (
-                      <NativeSelectOption
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-corner-dot-style">定位角内点</Label>
-                  <NativeSelect
-                    id="qr-corner-dot-style"
-                    onChange={(event) => {
-                      updateConfig(
-                        "cornerDotStyle",
-                        event.target
-                          .value as QrCodeToolConfig["cornerDotStyle"],
-                      );
-                    }}
-                    value={config.cornerDotStyle}
-                  >
-                    {QR_CORNER_DOT_OPTIONS.map((option) => (
-                      <NativeSelectOption
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-error-correction">容错等级</Label>
-                  <NativeSelect
-                    id="qr-error-correction"
-                    onChange={(event) => {
-                      updateConfig(
-                        "errorCorrectionLevel",
-                        event.target
-                          .value as QrCodeToolConfig["errorCorrectionLevel"],
-                      );
-                    }}
-                    value={config.errorCorrectionLevel}
-                  >
-                    {QR_ERROR_CORRECTION_OPTIONS.map((option) => (
-                      <NativeSelectOption
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border p-3 md:col-span-2">
-                  <div className="space-y-1">
-                    <div className="text-sm font-medium">透明背景</div>
-                    <p className="text-xs text-muted-foreground">
-                      适合贴在海报或深浅主题页面上，但建议保证底色足够纯净。
-                    </p>
+            <Card>
+              <CardContent>
+                <div className="text-sm font-medium">样式设置</div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-size">二维码尺寸（px）</Label>
+                    <Input
+                      id="qr-size"
+                      max={1024}
+                      min={160}
+                      onChange={(event) => {
+                        updateConfig(
+                          "size",
+                          Number(event.target.value) ||
+                            DEFAULT_QR_CODE_TOOL_CONFIG.size,
+                        );
+                      }}
+                      type="number"
+                      value={config.size}
+                    />
                   </div>
-                  <Switch
-                    checked={config.transparentBackground}
-                    onCheckedChange={(checked) => {
-                      updateConfig("transparentBackground", checked);
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border p-4">
-              <div className="text-sm font-medium">Logo 与导出</div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label>中间图片 / Logo</Label>
-                  <input
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    className="hidden"
-                    onChange={(event) => {
-                      void setLogoFile(event.target.files?.[0] ?? null);
-                      event.target.value = "";
-                    }}
-                    ref={logoInputRef}
-                    type="file"
-                  />
-                  <button
-                    className="w-full rounded-xl border border-dashed p-4 text-left transition-colors hover:bg-muted/40"
-                    onClick={() => {
-                      logoInputRef.current?.click();
-                    }}
-                    type="button"
-                  >
-                    <div className="font-medium">
-                      {logoState ? "更换 Logo" : "点击选择 Logo 图片"}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      支持 `PNG / JPG / WebP / SVG`，建议使用透明底品牌标。
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      大小建议不超过 {formatFileSize(MAX_LOGO_FILE_SIZE)}。
-                    </p>
-                    {logoState && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        当前文件：{logoState.name}（
-                        {formatFileSize(logoState.size)}）
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-margin">边距（px）</Label>
+                    <Input
+                      id="qr-margin"
+                      max={64}
+                      min={0}
+                      onChange={(event) => {
+                        updateConfig("margin", Number(event.target.value) || 0);
+                      }}
+                      type="number"
+                      value={config.margin}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-foreground">前景色</Label>
+                    <Input
+                      id="qr-foreground"
+                      onChange={(event) => {
+                        updateConfig("foregroundColor", event.target.value);
+                      }}
+                      type="color"
+                      value={config.foregroundColor}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-background">背景色</Label>
+                    <Input
+                      disabled={config.transparentBackground}
+                      id="qr-background"
+                      onChange={(event) => {
+                        updateConfig("backgroundColor", event.target.value);
+                      }}
+                      type="color"
+                      value={config.backgroundColor}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-dot-style">主体样式</Label>
+                    <NativeSelect
+                      id="qr-dot-style"
+                      onChange={(event) => {
+                        updateConfig(
+                          "dotStyle",
+                          event.target.value as QrCodeToolConfig["dotStyle"],
+                        );
+                      }}
+                      value={config.dotStyle}
+                    >
+                      {QR_DOT_STYLE_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-corner-square-style">定位角外框</Label>
+                    <NativeSelect
+                      id="qr-corner-square-style"
+                      onChange={(event) => {
+                        updateConfig(
+                          "cornerSquareStyle",
+                          event.target
+                            .value as QrCodeToolConfig["cornerSquareStyle"],
+                        );
+                      }}
+                      value={config.cornerSquareStyle}
+                    >
+                      {QR_CORNER_SQUARE_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-corner-dot-style">定位角内点</Label>
+                    <NativeSelect
+                      id="qr-corner-dot-style"
+                      onChange={(event) => {
+                        updateConfig(
+                          "cornerDotStyle",
+                          event.target
+                            .value as QrCodeToolConfig["cornerDotStyle"],
+                        );
+                      }}
+                      value={config.cornerDotStyle}
+                    >
+                      {QR_CORNER_DOT_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-error-correction">容错等级</Label>
+                    <NativeSelect
+                      id="qr-error-correction"
+                      onChange={(event) => {
+                        updateConfig(
+                          "errorCorrectionLevel",
+                          event.target
+                            .value as QrCodeToolConfig["errorCorrectionLevel"],
+                        );
+                      }}
+                      value={config.errorCorrectionLevel}
+                    >
+                      {QR_ERROR_CORRECTION_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border p-3 md:col-span-2">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium">透明背景</div>
+                      <p className="text-xs text-muted-foreground">
+                        适合贴在海报或深浅主题页面上，但建议保证底色足够纯净。
                       </p>
-                    )}
-                  </button>
-                  {logoState && (
-                    <Button onClick={clearLogo} type="button" variant="outline">
-                      移除 Logo
-                    </Button>
-                  )}
+                    </div>
+                    <Switch
+                      checked={config.transparentBackground}
+                      onCheckedChange={(checked) => {
+                        updateConfig("transparentBackground", checked);
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-logo-scale">Logo 占比</Label>
-                  <Input
-                    id="qr-logo-scale"
-                    max={0.4}
-                    min={0.1}
-                    onChange={(event) => {
-                      updateConfig(
-                        "logoScale",
-                        Number(event.target.value) || 0.2,
-                      );
-                    }}
-                    step={0.01}
-                    type="number"
-                    value={config.logoScale}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="qr-logo-margin">Logo 边距（px）</Label>
-                  <Input
-                    id="qr-logo-margin"
-                    max={24}
-                    min={0}
-                    onChange={(event) => {
-                      updateConfig(
-                        "logoMargin",
-                        Number(event.target.value) || 0,
-                      );
-                    }}
-                    type="number"
-                    value={config.logoMargin}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="qr-download-format">默认下载格式</Label>
-                  <NativeSelect
-                    id="qr-download-format"
-                    onChange={(event) => {
-                      updateConfig(
-                        "downloadFormat",
-                        event.target
-                          .value as QrCodeToolConfig["downloadFormat"],
-                      );
-                    }}
-                    value={config.downloadFormat}
-                  >
-                    {QR_DOWNLOAD_FORMAT_OPTIONS.map((option) => (
-                      <NativeSelectOption
-                        key={option.value}
-                        value={option.value}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent>
+                <div className="text-sm font-medium">Logo 与导出</div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>中间图片 / Logo</Label>
+                    <input
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={(event) => {
+                        void setLogoFile(event.target.files?.[0] ?? null);
+                        event.target.value = "";
+                      }}
+                      ref={logoInputRef}
+                      type="file"
+                    />
+                    <button
+                      className="w-full rounded-xl border border-dashed p-4 text-left transition-colors hover:bg-muted/40"
+                      onClick={() => {
+                        logoInputRef.current?.click();
+                      }}
+                      type="button"
+                    >
+                      <div className="font-medium">
+                        {logoState ? "更换 Logo" : "点击选择 Logo 图片"}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        支持 `PNG / JPG / WebP / SVG`，建议使用透明底品牌标。
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        大小建议不超过 {formatFileSize(MAX_LOGO_FILE_SIZE)}。
+                      </p>
+                      {logoState && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          当前文件：{logoState.name}（
+                          {formatFileSize(logoState.size)}）
+                        </p>
+                      )}
+                    </button>
+                    {logoState && (
+                      <Button
+                        onClick={clearLogo}
+                        type="button"
+                        variant="outline"
                       >
-                        {option.label}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
+                        移除 Logo
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-logo-scale">Logo 占比</Label>
+                    <Input
+                      id="qr-logo-scale"
+                      max={0.4}
+                      min={0.1}
+                      onChange={(event) => {
+                        updateConfig(
+                          "logoScale",
+                          Number(event.target.value) || 0.2,
+                        );
+                      }}
+                      step={0.01}
+                      type="number"
+                      value={config.logoScale}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qr-logo-margin">Logo 边距（px）</Label>
+                    <Input
+                      id="qr-logo-margin"
+                      max={24}
+                      min={0}
+                      onChange={(event) => {
+                        updateConfig(
+                          "logoMargin",
+                          Number(event.target.value) || 0,
+                        );
+                      }}
+                      type="number"
+                      value={config.logoMargin}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="qr-download-format">默认下载格式</Label>
+                    <NativeSelect
+                      id="qr-download-format"
+                      onChange={(event) => {
+                        updateConfig(
+                          "downloadFormat",
+                          event.target
+                            .value as QrCodeToolConfig["downloadFormat"],
+                        );
+                      }}
+                      value={config.downloadFormat}
+                    >
+                      {QR_DOWNLOAD_FORMAT_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </>
         ) : (
           <div className="space-y-4">

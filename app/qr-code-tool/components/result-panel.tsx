@@ -6,6 +6,7 @@ import { Badge } from "lynote-ui/badge";
 import { Button } from "lynote-ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -31,6 +32,7 @@ import {
   createImageMimeType,
   createQrFileName,
   createQrStylingOptions,
+  DEFAULT_QR_CODE_TOOL_CONFIG,
   downloadBlob,
   formatFileSize,
   getContentTypeLabel,
@@ -81,7 +83,12 @@ const ResultPanel: FC = () => {
 
     const container = qrContainerRef.current;
 
-    const qrInstance = new QRCodeStyling(previewOptions);
+    // 页面预览时固定尺寸
+    const qrInstance = new QRCodeStyling({
+      ...previewOptions,
+      width: DEFAULT_QR_CODE_TOOL_CONFIG.size,
+      height: DEFAULT_QR_CODE_TOOL_CONFIG.size,
+    });
 
     container.innerHTML = "";
     qrInstance.append(container);
@@ -154,6 +161,45 @@ const ResultPanel: FC = () => {
             ? "实时预览二维码、风险提示和结构化内容，并支持下载图片或复制原始值。"
             : "展示二维码图片、识别结果、结构化字段和可直接执行的快捷动作。"}
         </CardDescription>
+        <CardAction>
+          {generateResult && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => {
+                  void handleCopyImage();
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                复制图片
+              </Button>
+              <Button
+                onClick={() => {
+                  void handleDownloadImage();
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                下载图片
+              </Button>
+              <Button
+                onClick={() => {
+                  void copyText(
+                    generateResult.payload,
+                    "二维码原始内容已复制到剪贴板。",
+                  );
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                复制原始内容
+              </Button>
+            </div>
+          )}
+        </CardAction>
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -179,67 +225,31 @@ const ResultPanel: FC = () => {
 
             {generateResult && (
               <>
-                <div className="rounded-xl border p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="font-medium">当前二维码</div>
-                        <Badge variant="secondary">
-                          {getContentTypeLabel(config.contentType)}
-                        </Badge>
-                        <Badge variant="outline">
-                          容错 {config.errorCorrectionLevel}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        内容长度 {generateResult.payloadLength}，复杂度{" "}
-                        {generateResult.estimatedComplexity}。
-                      </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-medium">当前二维码</div>
+                      <Badge variant="secondary">
+                        {getContentTypeLabel(config.contentType)}
+                      </Badge>
+                      <Badge variant="outline">
+                        容错 {config.errorCorrectionLevel}
+                      </Badge>
                     </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={() => {
-                          void handleCopyImage();
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        复制图片
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          void handleDownloadImage();
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        下载图片
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          void copyText(
-                            generateResult.payload,
-                            "二维码原始内容已复制到剪贴板。",
-                          );
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        复制原始内容
-                      </Button>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      内容长度 {generateResult.payloadLength}，复杂度{" "}
+                      {generateResult.estimatedComplexity}。
+                    </p>
                   </div>
+                </div>
 
-                  <div className="mt-4 grid gap-4">
-                    <div className="rounded-2xl border bg-muted/20 p-4">
+                <div className="mt-4 grid gap-4">
+                  <Card>
+                    <div className="rounded-2xl bg-muted/20 p-4">
                       <div className="text-sm font-medium">二维码预览</div>
                       <div
                         className={cn(
-                          "mt-3 flex min-h-90 items-center justify-center rounded-2xl border p-4",
+                          "mt-3 flex min-h-90 items-center justify-center rounded-2xl p-4",
                           config.transparentBackground
                             ? "bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6)] bg-size-[24px_24px] bg-position-[0_0,12px_12px] dark:bg-[linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937),linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937)]"
                             : "",
@@ -253,23 +263,25 @@ const ResultPanel: FC = () => {
                           : "当前预览与下载样式保持一致。"}
                       </p>
                     </div>
+                  </Card>
 
-                    <div className="space-y-4">
-                      {generateResult.warnings.length > 0 && (
-                        <Alert className="bgmax-w-md max-w-md border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50">
-                          <AlertTriangleIcon />
-                          <AlertTitle>可读性提示</AlertTitle>
-                          <AlertDescription>
-                            <ul>
-                              {generateResult.warnings.map((warning) => (
-                                <li key={warning}>{warning}</li>
-                              ))}
-                            </ul>
-                          </AlertDescription>
-                        </Alert>
-                      )}
+                  <div className="space-y-4">
+                    {generateResult.warnings.length > 0 && (
+                      <Alert className="bgmax-w-md max-w-md border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50">
+                        <AlertTriangleIcon />
+                        <AlertTitle>可读性提示</AlertTitle>
+                        <AlertDescription>
+                          <ul>
+                            {generateResult.warnings.map((warning) => (
+                              <li key={warning}>{warning}</li>
+                            ))}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
 
-                      <div className="rounded-xl border p-4">
+                    <Card>
+                      <CardContent>
                         <div className="text-sm font-medium">结构化内容</div>
                         <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
                           {generateResult.parsed.fields.map((field) => (
@@ -293,17 +305,19 @@ const ResultPanel: FC = () => {
                             <div>{logoState ? logoState.name : "未添加"}</div>
                           </div>
                         </div>
-                      </div>
+                      </CardContent>
+                    </Card>
 
-                      <div className="rounded-xl border p-4">
+                    <Card>
+                      <CardContent>
                         <div className="text-sm font-medium">原始编码内容</div>
                         <Textarea
                           className="mt-3 min-h-40 font-mono text-xs"
                           readOnly
                           value={generateResult.payload}
                         />
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               </>
@@ -358,7 +372,7 @@ const ResultPanel: FC = () => {
                   </div>
                 )}
 
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+                <div className="grid gap-4">
                   <div className="rounded-xl border p-4">
                     <div className="text-sm font-medium">原图预览</div>
                     <div className="mt-3 rounded-2xl border bg-muted/20 p-3">
@@ -454,14 +468,14 @@ const ResultPanel: FC = () => {
                       )}
                     </div>
 
-                    <div className="rounded-xl border p-4">
-                      <div className="text-sm font-medium">原始编码内容</div>
-                      <Textarea
-                        className="mt-3 min-h-45 font-mono text-xs"
-                        readOnly
-                        value={parseResult.rawValue}
-                      />
-                    </div>
+                    {/* <div className="rounded-xl border p-4"> */}
+                    <div className="text-sm font-medium">原始编码内容</div>
+                    <Textarea
+                      className="mt-3 min-h-45 font-mono text-xs"
+                      readOnly
+                      value={parseResult.rawValue}
+                    />
+                    {/* </div> */}
                   </div>
                 </div>
               </>
