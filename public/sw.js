@@ -59,6 +59,53 @@ async function trimCache(cache, maxEntries) {
   );
 }
 
+async function openCacheBestEffort(cacheName) {
+  try {
+    return await caches.open(cacheName);
+  } catch {
+    return undefined;
+  }
+}
+
+async function matchCacheBestEffort(cache, request) {
+  if (!cache) {
+    return undefined;
+  }
+
+  try {
+    return await cache.match(request);
+  } catch {
+    return undefined;
+  }
+}
+
+async function putCacheBestEffort(cache, request, response) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await cache.put(request, response.clone());
+  } catch {
+    /**
+     * 缓存写入依赖浏览器存储配额和隐私策略；这里不能让缓存失败覆盖
+     * 已经成功的网络响应，否则页面和 chunk 会在缓存不可写时直接加载失败。
+     */
+  }
+}
+
+async function trimCacheBestEffort(cache, maxEntries) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await trimCache(cache, maxEntries);
+  } catch {
+    // 清理失败只影响缓存占用，不应阻断当前资源响应。
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
@@ -97,18 +144,18 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
+  const cachePromise = openCacheBestEffort(cacheName);
 
   try {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
     if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
+      await putCacheBestEffort(await cachePromise, request, response);
     }
 
     return response;
   } catch (error) {
-    const cachedResponse = await cache.match(request);
+    const cachedResponse = await matchCacheBestEffort(await cachePromise, request);
 
     if (cachedResponse) {
       return cachedResponse;
@@ -119,8 +166,8 @@ async function networkFirst(request, cacheName) {
 }
 
 async function cacheFirst(request, cacheName, maxEntries) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
+  const cache = await openCacheBestEffort(cacheName);
+  const cachedResponse = await matchCacheBestEffort(cache, request);
 
   if (cachedResponse) {
     return cachedResponse;
@@ -129,10 +176,10 @@ async function cacheFirst(request, cacheName, maxEntries) {
   const response = await fetch(request);
 
   if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
+    await putCacheBestEffort(cache, request, response);
 
     if (maxEntries) {
-      await trimCache(cache, maxEntries);
+      await trimCacheBestEffort(cache, maxEntries);
     }
   }
 
