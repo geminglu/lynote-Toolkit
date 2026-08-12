@@ -59,6 +59,18 @@ async function trimCache(cache, maxEntries) {
   );
 }
 
+async function putCacheBestEffort(cache, request, response, maxEntries) {
+  try {
+    await cache.put(request, response.clone());
+
+    if (maxEntries) {
+      await trimCache(cache, maxEntries);
+    }
+  } catch {
+    // 缓存配额或隐私模式限制不应让已经成功的网络响应变成加载失败。
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
@@ -103,7 +115,7 @@ async function networkFirst(request, cacheName) {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
     if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
+      await putCacheBestEffort(cache, request, response);
     }
 
     return response;
@@ -129,11 +141,7 @@ async function cacheFirst(request, cacheName, maxEntries) {
   const response = await fetch(request);
 
   if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
-
-    if (maxEntries) {
-      await trimCache(cache, maxEntries);
-    }
+    await putCacheBestEffort(cache, request, response, maxEntries);
   }
 
   return response;
