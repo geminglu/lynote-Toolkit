@@ -4,7 +4,7 @@
 export type BarcodeToolMode = "generate" | "parse";
 
 /**
- * 工具支持的码制标识，对应 bwip-js 的 bcid 与 ZXing 的 BarcodeFormat。
+ * 工具支持的码制标识；渲染与解析库的具体名称在工具层映射。
  */
 export type BarcodeSymbology =
   | "code128"

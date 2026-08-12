@@ -2,7 +2,7 @@
 
 import { toast } from "lynote-ui/sonner";
 import type { ClipboardEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { BarcodeParseResult, BarcodeToolConfig } from "../type";
 import {
@@ -12,6 +12,18 @@ import {
   getSymbologyMeta,
   parseBarcodeFromFile,
 } from "../utils";
+
+function subscribeToClientReady() {
+  return () => undefined;
+}
+
+function getClientReadySnapshot() {
+  return true;
+}
+
+function getServerReadySnapshot() {
+  return false;
+}
 
 /**
  * 条形码工具的主状态与交互逻辑。
@@ -26,14 +38,23 @@ function useBarcodeTool() {
   );
   const [parseLoading, setParseLoading] = useState(false);
   const [parseError, setParseError] = useState("");
+  // 保持服务端渲染与水合首帧都不访问 document，客户端接管后再渲染 canvas。
+  const isClientReady = useSyncExternalStore(
+    subscribeToClientReady,
+    getClientReadySnapshot,
+    getServerReadySnapshot,
+  );
 
-  // 生成模式直接派生，避免在 effect 中触发额外渲染。
   const generateState = useMemo(() => {
     if (config.mode !== "generate") {
       return { result: null, error: "" };
     }
 
     if (!config.text.trim()) {
+      return { result: null, error: "" };
+    }
+
+    if (!isClientReady) {
       return { result: null, error: "" };
     }
 
@@ -48,7 +69,7 @@ function useBarcodeTool() {
             : "条形码生成失败，请检查输入。",
       };
     }
-  }, [config]);
+  }, [config, isClientReady]);
 
   const updateConfig = useCallback(
     <Key extends keyof BarcodeToolConfig>(
