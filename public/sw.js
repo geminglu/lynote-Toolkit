@@ -59,26 +59,88 @@ async function trimCache(cache, maxEntries) {
   );
 }
 
+async function openCacheBestEffort(cacheName) {
+  try {
+    return await caches.open(cacheName);
+  } catch {
+    return undefined;
+  }
+}
+
+async function getCacheKeysBestEffort() {
+  try {
+    return await caches.keys();
+  } catch {
+    return [];
+  }
+}
+
+async function deleteCacheBestEffort(cacheName) {
+  try {
+    await caches.delete(cacheName);
+  } catch {
+    // 清理旧缓存失败不应阻塞新版 Service Worker 激活。
+  }
+}
+
+async function matchCacheBestEffort(cache, request) {
+  if (!cache) {
+    return undefined;
+  }
+
+  try {
+    return await cache.match(request);
+  } catch {
+    return undefined;
+  }
+}
+
+async function putCacheBestEffort(cache, request, response) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await cache.put(request, response);
+  } catch {
+    // 缓存空间不足或存储被禁用时，不能影响已经成功的网络响应。
+  }
+}
+
+async function trimCacheBestEffort(cache, maxEntries) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await trimCache(cache, maxEntries);
+  } catch {
+    // 运行时缓存裁剪失败只会增加缓存占用，不应导致资源请求失败。
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
   event.waitUntil(
-    caches
-      .open(ASSET_CACHE_NAME)
-      .then((cache) =>
-        Promise.all(
-          PRECACHE_PATHS.map((pathname) =>
-            cache.add(withBasePath(pathname)).catch(() => undefined),
-          ),
+    openCacheBestEffort(ASSET_CACHE_NAME).then((cache) => {
+      if (!cache) {
+        return undefined;
+      }
+
+      return Promise.all(
+        PRECACHE_PATHS.map((pathname) =>
+          cache.add(withBasePath(pathname)).catch(() => undefined),
         ),
-      ),
+      );
+    }),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const cacheKeys = await caches.keys();
+      const cacheKeys = await getCacheKeysBestEffort();
 
       await Promise.all(
         cacheKeys
@@ -88,7 +150,7 @@ self.addEventListener("activate", (event) => {
               (cacheKey.startsWith(CACHE_PREFIX) &&
                 !CURRENT_CACHE_NAMES.includes(cacheKey)),
           )
-          .map((cacheKey) => caches.delete(cacheKey)),
+          .map((cacheKey) => deleteCacheBestEffort(cacheKey)),
       );
 
       await self.clients.claim();
@@ -97,18 +159,18 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
+  const cache = await openCacheBestEffort(cacheName);
 
   try {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
     if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
+      await putCacheBestEffort(cache, request, response.clone());
     }
 
     return response;
   } catch (error) {
-    const cachedResponse = await cache.match(request);
+    const cachedResponse = await matchCacheBestEffort(cache, request);
 
     if (cachedResponse) {
       return cachedResponse;
@@ -119,8 +181,8 @@ async function networkFirst(request, cacheName) {
 }
 
 async function cacheFirst(request, cacheName, maxEntries) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
+  const cache = await openCacheBestEffort(cacheName);
+  const cachedResponse = await matchCacheBestEffort(cache, request);
 
   if (cachedResponse) {
     return cachedResponse;
@@ -129,10 +191,10 @@ async function cacheFirst(request, cacheName, maxEntries) {
   const response = await fetch(request);
 
   if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
+    await putCacheBestEffort(cache, request, response.clone());
 
     if (maxEntries) {
-      await trimCache(cache, maxEntries);
+      await trimCacheBestEffort(cache, maxEntries);
     }
   }
 
