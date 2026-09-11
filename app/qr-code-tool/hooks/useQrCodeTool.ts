@@ -4,6 +4,8 @@ import { toast } from "lynote-ui/sonner";
 import type { ClipboardEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
 
+import { useRequestVersion } from "@/lib/use-request-version";
+
 import type { QrCodeToolConfig, QrLogoState, QrParseResult } from "../type";
 import {
   DEFAULT_QR_CODE_TOOL_CONFIG,
@@ -28,6 +30,8 @@ function useQrCodeTool() {
   const [parseResult, setParseResult] = useState<QrParseResult | null>(null);
   const [parseLoading, setParseLoading] = useState(false);
   const [parseError, setParseError] = useState("");
+  const parseRequestVersion = useRequestVersion();
+  const logoRequestVersion = useRequestVersion();
 
   const generateState = useMemo(() => {
     if (config.mode !== "generate") {
@@ -53,6 +57,11 @@ function useQrCodeTool() {
     }
   }, [config, logoState]);
 
+  const invalidateParse = useCallback(() => {
+    parseRequestVersion.invalidate();
+    setParseLoading(false);
+  }, [parseRequestVersion]);
+
   const updateConfig = useCallback(
     <Key extends keyof QrCodeToolConfig>(
       key: Key,
@@ -66,16 +75,20 @@ function useQrCodeTool() {
     [],
   );
 
-  const switchMode = useCallback((mode: QrCodeToolConfig["mode"]) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      mode,
-    }));
+  const switchMode = useCallback(
+    (mode: QrCodeToolConfig["mode"]) => {
+      invalidateParse();
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        mode,
+      }));
 
-    if (mode === "generate") {
-      setParseError("");
-    }
-  }, []);
+      if (mode === "generate") {
+        setParseError("");
+      }
+    },
+    [invalidateParse],
+  );
 
   const fillExample = useCallback(() => {
     setConfig((previousConfig) => {
@@ -125,75 +138,108 @@ function useQrCodeTool() {
   }, []);
 
   const resetToDefaults = useCallback(() => {
+    invalidateParse();
+    logoRequestVersion.invalidate();
     setConfig(DEFAULT_QR_CODE_TOOL_CONFIG);
     setLogoState(null);
     setParseResult(null);
     setParseError("");
-    setParseLoading(false);
     toast.success("已恢复二维码工具默认配置。");
-  }, []);
+  }, [invalidateParse, logoRequestVersion]);
 
-  const setLogoFile = useCallback(async (file: File | null) => {
-    if (!file) {
-      setLogoState(null);
-      return;
-    }
+  const setLogoFile = useCallback(
+    async (file: File | null) => {
+      const version = logoRequestVersion.start();
 
-    if (file.size > MAX_LOGO_FILE_SIZE) {
-      const message = `Logo 图片请控制在 ${formatFileSize(MAX_LOGO_FILE_SIZE)} 以内。`;
+      if (!file) {
+        setLogoState(null);
+        return;
+      }
 
-      toast.error(message);
-      return;
-    }
+      if (file.size > MAX_LOGO_FILE_SIZE) {
+        const message = `Logo 图片请控制在 ${formatFileSize(MAX_LOGO_FILE_SIZE)} 以内。`;
 
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
+        toast.error(message);
+        return;
+      }
 
-      setLogoState({
-        name: file.name,
-        size: file.size,
-        dataUrl,
-      });
-      toast.success("Logo 图片已导入，二维码预览会自动刷新。");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Logo 图片读取失败。",
-      );
-    }
-  }, []);
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+
+        if (!logoRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        setLogoState({
+          name: file.name,
+          size: file.size,
+          dataUrl,
+        });
+        toast.success("Logo 图片已导入，二维码预览会自动刷新。");
+      } catch (error) {
+        if (!logoRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        toast.error(
+          error instanceof Error ? error.message : "Logo 图片读取失败。",
+        );
+      }
+    },
+    [logoRequestVersion],
+  );
 
   const clearLogo = useCallback(() => {
+    logoRequestVersion.invalidate();
     setLogoState(null);
-  }, []);
+  }, [logoRequestVersion]);
 
-  const parseFile = useCallback(async (file: File | null) => {
-    if (!file) {
-      return;
-    }
+  const parseFile = useCallback(
+    async (file: File | null) => {
+      if (!file) {
+        return;
+      }
 
-    setParseLoading(true);
-    setParseError("");
+      const version = parseRequestVersion.start();
 
-    try {
-      const nextResult = await parseQrFromFile(file);
-
-      setConfig((previousConfig) => ({
-        ...previousConfig,
-        mode: "parse",
-      }));
-      setParseResult(nextResult);
-      toast.success("二维码解析成功。");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "二维码解析失败，请稍后重试。";
-
+      setParseLoading(true);
+      setParseError("");
       setParseResult(null);
-      setParseError(message);
-      toast.error(message);
-    } finally {
-      setParseLoading(false);
-    }
-  }, []);
+
+      try {
+        const nextResult = await parseQrFromFile(file);
+
+        if (!parseRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        setConfig((previousConfig) => ({
+          ...previousConfig,
+          mode: "parse",
+        }));
+        setParseResult(nextResult);
+        toast.success("二维码解析成功。");
+      } catch (error) {
+        if (!parseRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "二维码解析失败，请稍后重试。";
+
+        setParseResult(null);
+        setParseError(message);
+        toast.error(message);
+      } finally {
+        if (parseRequestVersion.isCurrent(version)) {
+          setParseLoading(false);
+        }
+      }
+    },
+    [parseRequestVersion],
+  );
 
   const parseClipboard = useCallback(
     async (event: ClipboardEvent<HTMLElement>) => {
@@ -210,9 +256,10 @@ function useQrCodeTool() {
   );
 
   const clearParseResult = useCallback(() => {
+    invalidateParse();
     setParseResult(null);
     setParseError("");
-  }, []);
+  }, [invalidateParse]);
 
   const copyText = useCallback(
     async (value: string, successMessage: string) => {

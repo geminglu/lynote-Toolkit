@@ -10,14 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { Textarea } from "lynote-ui/textarea";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useHashGeneratorContext } from "../hooks/useHashGeneratorContext";
 import {
@@ -48,7 +48,7 @@ function formatLastModified(timestamp: number) {
 }
 
 const ResultPanel: FC = () => {
-  const { result, error, loading, copyOutput, downloadOutput } =
+  const { config, result, error, loading, copyOutput, downloadOutput } =
     useHashGeneratorContext();
 
   return (
@@ -61,29 +61,19 @@ const ResultPanel: FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>生成失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <ToolErrorState message={error} title="生成失败" />}
 
-        {!result && !loading && (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>还没有生成结果</EmptyTitle>
-              <EmptyDescription>
-                左侧确认输入和算法后点击“生成”，结果只会保留在当前页面会话中。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        {!result && !loading && !error && (
+          <ToolEmptyState
+            description="左侧确认输入和算法后点击“生成”，结果只会保留在当前页面会话中。"
+            title="还没有生成结果"
+          />
         )}
 
         {loading && (
-          <div className="rounded-lg border border-dashed p-6 text-sm">
-            正在计算 {result?.mode === "hmac" ? "HMAC" : "结果"}
-            ，请稍候。文件模式会按分块方式在浏览器本地处理。
-          </div>
+          <ToolLoadingState
+            message={`正在计算 ${config.mode === "hmac" ? "HMAC" : "结果"}，请稍候。文件模式会按分块方式在浏览器本地处理。`}
+          />
         )}
 
         {result && (

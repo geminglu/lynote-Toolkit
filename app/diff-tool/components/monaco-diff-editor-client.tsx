@@ -317,7 +317,7 @@ export default function MonacoDiffEditorClient({
       minimap: {
         enabled: false,
       },
-      originalEditable: true,
+      originalEditable: !readOnly,
       padding: {
         top: 16,
         bottom: 16,

@@ -169,7 +169,10 @@ function decodeQueryEntriesToText(entries: UrlQueryEntry[]) {
 }
 
 function createQueryJson(entries: UrlQueryEntry[]) {
-  const grouped: Record<string, string | string[]> = {};
+  // Query key 完全由用户输入，空原型对象可避免 __proto__ 被当作访问器。
+  const grouped: Record<string, string | string[]> = Object.create(
+    null,
+  ) as Record<string, string | string[]>;
 
   entries.forEach((entry) => {
     const value = entry.decodedValue;

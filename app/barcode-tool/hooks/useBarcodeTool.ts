@@ -2,7 +2,9 @@
 
 import { toast } from "lynote-ui/sonner";
 import type { ClipboardEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+
+import { useRequestVersion } from "@/lib/use-request-version";
 
 import type { BarcodeParseResult, BarcodeToolConfig } from "../type";
 import {
@@ -12,6 +14,10 @@ import {
   getSymbologyMeta,
   parseBarcodeFromFile,
 } from "../utils";
+
+const subscribeToClientReady = () => () => undefined;
+const getClientReadySnapshot = () => true;
+const getServerReadySnapshot = () => false;
 
 /**
  * 条形码工具的主状态与交互逻辑。
@@ -26,10 +32,16 @@ function useBarcodeTool() {
   );
   const [parseLoading, setParseLoading] = useState(false);
   const [parseError, setParseError] = useState("");
+  const parseRequestVersion = useRequestVersion();
+  const clientReady = useSyncExternalStore(
+    subscribeToClientReady,
+    getClientReadySnapshot,
+    getServerReadySnapshot,
+  );
 
-  // 生成模式直接派生，避免在 effect 中触发额外渲染。
+  // 静态导出会预渲染客户端组件，浏览器画布只能在接管完成后创建。
   const generateState = useMemo(() => {
-    if (config.mode !== "generate") {
+    if (!clientReady || config.mode !== "generate") {
       return { result: null, error: "" };
     }
 
@@ -48,7 +60,12 @@ function useBarcodeTool() {
             : "条形码生成失败，请检查输入。",
       };
     }
-  }, [config]);
+  }, [clientReady, config]);
+
+  const invalidateParse = useCallback(() => {
+    parseRequestVersion.invalidate();
+    setParseLoading(false);
+  }, [parseRequestVersion]);
 
   const updateConfig = useCallback(
     <Key extends keyof BarcodeToolConfig>(
@@ -63,16 +80,20 @@ function useBarcodeTool() {
     [],
   );
 
-  const switchMode = useCallback((mode: BarcodeToolConfig["mode"]) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      mode,
-    }));
+  const switchMode = useCallback(
+    (mode: BarcodeToolConfig["mode"]) => {
+      invalidateParse();
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        mode,
+      }));
 
-    if (mode === "generate") {
-      setParseError("");
-    }
-  }, []);
+      if (mode === "generate") {
+        setParseError("");
+      }
+    },
+    [invalidateParse],
+  );
 
   // 切换码制时，自动同步示例值，避免上一个码制的内容触发校验失败。
   const switchSymbology = useCallback(
@@ -95,41 +116,59 @@ function useBarcodeTool() {
   }, []);
 
   const resetToDefaults = useCallback(() => {
+    invalidateParse();
     setConfig(DEFAULT_BARCODE_TOOL_CONFIG);
     setParseResult(null);
     setParseError("");
-    setParseLoading(false);
     toast.success("已恢复条形码工具默认配置。");
-  }, []);
+  }, [invalidateParse]);
 
-  const parseFile = useCallback(async (file: File | null) => {
-    if (!file) {
-      return;
-    }
+  const parseFile = useCallback(
+    async (file: File | null) => {
+      if (!file) {
+        return;
+      }
 
-    setParseLoading(true);
-    setParseError("");
+      const version = parseRequestVersion.start();
 
-    try {
-      const nextResult = await parseBarcodeFromFile(file);
-
-      setConfig((previousConfig) => ({
-        ...previousConfig,
-        mode: "parse",
-      }));
-      setParseResult(nextResult);
-      toast.success("条形码解析成功。");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "条形码解析失败，请稍后重试。";
-
+      setParseLoading(true);
+      setParseError("");
       setParseResult(null);
-      setParseError(message);
-      toast.error(message);
-    } finally {
-      setParseLoading(false);
-    }
-  }, []);
+
+      try {
+        const nextResult = await parseBarcodeFromFile(file);
+
+        if (!parseRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        setConfig((previousConfig) => ({
+          ...previousConfig,
+          mode: "parse",
+        }));
+        setParseResult(nextResult);
+        toast.success("条形码解析成功。");
+      } catch (error) {
+        if (!parseRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "条形码解析失败，请稍后重试。";
+
+        setParseResult(null);
+        setParseError(message);
+        toast.error(message);
+      } finally {
+        if (parseRequestVersion.isCurrent(version)) {
+          setParseLoading(false);
+        }
+      }
+    },
+    [parseRequestVersion],
+  );
 
   const parseClipboard = useCallback(
     async (event: ClipboardEvent<HTMLElement>) => {
@@ -146,9 +185,10 @@ function useBarcodeTool() {
   );
 
   const clearParseResult = useCallback(() => {
+    invalidateParse();
     setParseResult(null);
     setParseError("");
-  }, []);
+  }, [invalidateParse]);
 
   const copyText = useCallback(
     async (value: string, successMessage: string) => {

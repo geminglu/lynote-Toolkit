@@ -12,15 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { Switch } from "lynote-ui/switch";
 import { Textarea } from "lynote-ui/textarea";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useKeyGeneratorContext } from "../hooks/useKeyGeneratorContext";
 import { createMaskedValue } from "../utils";
@@ -69,28 +69,17 @@ const ResultPanel: FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>生成失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <ToolErrorState message={error} title="生成失败" />}
 
-        {!result && !loading && (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>还没有生成结果</EmptyTitle>
-              <EmptyDescription>
-                左侧确认配置后点击“生成”，结果只会保留在当前页面会话中。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        {!result && !loading && !error && (
+          <ToolEmptyState
+            description="左侧确认配置后点击“生成”，结果只会保留在当前页面会话中。"
+            title="还没有生成结果"
+          />
         )}
 
         {loading && (
-          <div className="rounded-lg border border-dashed p-6 text-sm">
-            正在调用浏览器的 Web Crypto API 生成密钥，请稍候。
-          </div>
+          <ToolLoadingState message="正在调用浏览器的 Web Crypto API 生成密钥，请稍候。" />
         )}
 
         {result && (

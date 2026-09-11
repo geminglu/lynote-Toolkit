@@ -10,14 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { Textarea } from "lynote-ui/textarea";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useBase64ToolContext } from "../hooks/useBase64ToolContext";
 import {
@@ -66,32 +66,20 @@ const ResultPanel: FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>处理失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <ToolErrorState message={error} title="处理失败" />}
 
         {!result && !loading && !error && (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>还没有处理结果</EmptyTitle>
-              <EmptyDescription>
-                左侧输入文本、Base64、Data URL
-                或选择文件后，结果会自动出现在这里。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <ToolEmptyState
+            description="左侧输入文本、Base64、Data URL 或选择文件后，结果会自动出现在这里。"
+            title="还没有处理结果"
+          />
         )}
 
         {loading && (
-          <div className="rounded-lg border border-dashed p-6 text-sm">
-            正在处理当前输入，请稍候。文件模式会先在浏览器本地读取原始字节。
-          </div>
+          <ToolLoadingState message="正在处理当前输入，请稍候。文件模式会先在浏览器本地读取原始字节。" />
         )}
 
-        {result && primaryOutput && (
+        {result && !loading && primaryOutput && (
           <>
             <Alert>
               <AlertTitle>当前结果不会自动保存</AlertTitle>

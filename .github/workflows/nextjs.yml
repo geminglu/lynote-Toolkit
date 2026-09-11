@@ -51,11 +51,25 @@ jobs:
       - name: Verify
         run: pnpm check
 
+      - name: Run unit tests
+        run: pnpm test
+
       - name: Build with Next.js
         run: pnpm build
         env:
           NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io
           NEXT_PUBLIC_SITE_BASE_PATH: /${{ github.event.repository.name }}
+
+      - name: Install browser for smoke tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify static artifact
+        run: pnpm test:static
+
+      - name: Run browser smoke tests
+        run: pnpm test:e2e
+        env:
+          TEST_SITE_BASE_PATH: /${{ github.event.repository.name }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

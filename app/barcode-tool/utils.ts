@@ -102,12 +102,12 @@ export const BARCODE_SYMBOLOGY_META: Record<BarcodeSymbology, SymbologyMeta> = {
   upce: {
     label: "UPC-E",
     description: "UPC-A 的 6 位压缩形式，适合小型包装。",
-    placeholder: "请输入 6 位或 8 位数字",
-    example: "01245678",
+    placeholder: "请输入 7 位数字（也可输入 8 位包含校验位）",
+    example: "0123456",
     linear: true,
     validate: (text) => {
-      if (!/^\d{6,8}$/.test(text)) {
-        return "UPC-E 需要 6 至 8 位数字内容。";
+      if (!/^\d{7,8}$/.test(text)) {
+        return "UPC-E 需要 7 位数字内容（也可直接输入 8 位包含校验位）。";
       }
       return null;
     },
@@ -315,7 +315,8 @@ function normalizeHexColor(hex: string) {
 function buildBwipOptions(config: BarcodeToolConfig): BwipRenderOptions {
   const meta = getSymbologyMeta(config.symbology);
   const baseOptions: BwipRenderOptions = {
-    bcid: config.symbology,
+    bcid:
+      config.symbology === "codabar" ? "rationalizedCodabar" : config.symbology,
     text: config.text,
     scale: config.scale,
     includetext: meta.linear ? config.includeText : false,

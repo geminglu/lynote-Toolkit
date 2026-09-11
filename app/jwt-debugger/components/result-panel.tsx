@@ -10,14 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { Textarea } from "lynote-ui/textarea";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useJwtDebuggerContext } from "../hooks/useJwtDebuggerContext";
 import type { JwtTimeClaimInfo } from "../type";
@@ -68,30 +68,17 @@ const ResultPanel: FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>解析失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <ToolErrorState message={error} title="解析失败" />}
 
-        {!result && !loading && (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>还没有解析结果</EmptyTitle>
-              <EmptyDescription>
-                左侧粘贴 token 后点击“解析
-                JWT”或“解析并验签”，结果仅保留在当前页面会话中。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        {!result && !loading && !error && (
+          <ToolEmptyState
+            description="左侧粘贴 token 后点击“解析 JWT”或“解析并验签”，结果仅保留在当前页面会话中。"
+            title="还没有解析结果"
+          />
         )}
 
         {loading && (
-          <div className="rounded-lg border border-dashed p-6 text-sm">
-            正在解析 JWT，并根据当前配置调用浏览器的 Web Crypto API
-            执行验签，请稍候。
-          </div>
+          <ToolLoadingState message="正在解析 JWT，并根据当前配置调用浏览器的 Web Crypto API 执行验签，请稍候。" />
         )}
 
         {result && (

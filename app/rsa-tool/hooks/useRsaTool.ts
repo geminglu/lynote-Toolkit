@@ -3,6 +3,8 @@
 import { toast } from "lynote-ui/sonner";
 import { useCallback, useMemo, useState } from "react";
 
+import { useRequestVersion } from "@/lib/use-request-version";
+
 import type {
   RsaBinaryEncoding,
   RsaHashAlgorithm,
@@ -28,11 +30,14 @@ function useRsaTool() {
   const [result, setResult] = useState<RsaToolResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestVersion = useRequestVersion();
 
   const clearTransientState = useCallback(() => {
+    requestVersion.invalidate();
     setResult(null);
     setError("");
-  }, []);
+    setLoading(false);
+  }, [requestVersion]);
 
   const updateMode = useCallback(
     (mode: RsaToolMode) => {
@@ -198,17 +203,29 @@ function useRsaTool() {
   }, [clearTransientState]);
 
   const execute = useCallback(async () => {
+    const configSnapshot = config;
+    const version = requestVersion.start();
+
+    setResult(null);
     setLoading(true);
     setError("");
 
     try {
-      const nextResult = await executeRsaTool(config);
+      const nextResult = await executeRsaTool(configSnapshot);
+
+      if (!requestVersion.isCurrent(version)) {
+        return;
+      }
 
       setResult(nextResult);
       toast.success(
-        `${getModeLabel(config.mode)}结果已生成，当前仅保留在页面内存中。`,
+        `${getModeLabel(configSnapshot.mode)}结果已生成，当前仅保留在页面内存中。`,
       );
     } catch (executionError) {
+      if (!requestVersion.isCurrent(version)) {
+        return;
+      }
+
       const nextError =
         executionError instanceof Error
           ? executionError.message
@@ -218,9 +235,11 @@ function useRsaTool() {
       setResult(null);
       toast.error(nextError);
     } finally {
-      setLoading(false);
+      if (requestVersion.isCurrent(version)) {
+        setLoading(false);
+      }
     }
-  }, [config]);
+  }, [config, requestVersion]);
 
   const copyOutput = useCallback(
     async (outputId: string) => {

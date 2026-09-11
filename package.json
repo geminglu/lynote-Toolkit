@@ -4,13 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "next build --webpack",
     "preview": "pnpm build && pnpm dlx serve out",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md,mdx}\"",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md,mdx}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:static": "node tests/static-output.mjs",
+    "test:e2e": "playwright test",
     "check": "pnpm lint && pnpm type-check && pnpm format:check",
     "lint-staged": "lint-staged",
     "prepare": "husky"
@@ -18,8 +22,6 @@
   "dependencies": {
     "@lucide/lab": "^0.1.2",
     "@monaco-editor/react": "^4.7.0",
-    "@vercel/analytics": "^2.0.1",
-    "@vercel/speed-insights": "^2.0.0",
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.22.0",
     "bwip-js": "^4.10.1",
@@ -42,6 +44,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20",
@@ -59,7 +62,8 @@
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4.2.4",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.59.1"
+    "typescript-eslint": "^8.59.1",
+    "vitest": "^3.2.4"
   },
   "pnpm": {
     "overrides": {

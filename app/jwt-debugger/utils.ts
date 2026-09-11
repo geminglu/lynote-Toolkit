@@ -1,3 +1,9 @@
+import {
+  losslessJsonToNative,
+  parseLosslessJson,
+  serializeLosslessJson,
+} from "@/lib/lossless-json";
+
 import type {
   JwtDebuggerConfig,
   JwtDebuggerResult,
@@ -110,13 +116,18 @@ function decodeBase64UrlUtf8(value: string, label: "Header" | "Payload") {
 
 function parseJsonRecord(text: string, label: "Header" | "Payload") {
   try {
-    const parsed = JSON.parse(text) as unknown;
+    const node = parseLosslessJson(text);
+    // 结构化视图以字符串承载超范围整数，格式化文本仍保留原始数字字面量。
+    const parsed = losslessJsonToNative(node, { unsafeInteger: "string" });
 
-    if (!isRecord(parsed)) {
+    if (node.kind !== "object" || !isRecord(parsed)) {
       throw new Error();
     }
 
-    return parsed;
+    return {
+      formatted: serializeLosslessJson(node, 2),
+      value: parsed,
+    };
   } catch {
     throw new Error(`JWT ${label} 不是合法 JSON 对象，请检查编码后的内容。`);
   }
@@ -271,15 +282,13 @@ async function importVerificationKey(
       );
     }
 
-    const trimmed = keyText.trim();
-
-    if (!trimmed) {
+    if (!keyText.trim()) {
       throw new Error("请输入用于 HS 系列验签的 Secret。");
     }
 
     return crypto.subtle.importKey(
       "raw",
-      new TextEncoder().encode(trimmed),
+      new TextEncoder().encode(keyText),
       {
         name: "HMAC",
         hash: { name: getHashNameFromAlgorithm(algorithm) },
@@ -592,15 +601,17 @@ function parseJwtToken(token: string) {
   const [headerBase64Url, payloadBase64Url, signature] = segments;
   const headerText = decodeBase64UrlUtf8(headerBase64Url, "Header");
   const payloadText = decodeBase64UrlUtf8(payloadBase64Url, "Payload");
-  const header = parseJsonRecord(headerText, "Header");
-  const payload = parseJsonRecord(payloadText, "Payload");
+  const parsedHeader = parseJsonRecord(headerText, "Header");
+  const parsedPayload = parseJsonRecord(payloadText, "Payload");
+  const header = parsedHeader.value;
+  const payload = parsedPayload.value;
 
   return {
     normalizedToken,
     header,
     payload,
-    headerText: JSON.stringify(header, null, 2),
-    payloadText: JSON.stringify(payload, null, 2),
+    headerText: parsedHeader.formatted,
+    payloadText: parsedPayload.formatted,
     signature,
     signingInput: `${headerBase64Url}.${payloadBase64Url}`,
     algorithm:

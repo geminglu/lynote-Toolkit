@@ -1,17 +1,15 @@
 import Providers from "@/components/providers";
 import {
-  absoluteUrl,
   SITE_DESCRIPTION,
   SITE_NAME,
+  SITE_ORIGIN,
   SITE_TITLE,
 } from "@/lib/seo";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(absoluteUrl("/")),
+  metadataBase: new URL(SITE_ORIGIN),
   title: {
     default: SITE_TITLE,
     template: "%s | Lynote Toolkit",
@@ -66,8 +64,6 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
-        <SpeedInsights />
-        <Analytics />
       </body>
     </html>
   );

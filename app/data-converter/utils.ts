@@ -1,5 +1,13 @@
 import { XMLBuilder, XMLParser, XMLValidator } from "fast-xml-parser";
-import YAML from "yaml";
+import YAML, { parseDocument, visit, type ScalarTag } from "yaml";
+
+import { createIdentifier, createUniqueIdentifier } from "@/lib/identifiers";
+import {
+  isUnsafeLosslessInteger,
+  parseLosslessJson,
+  serializeLosslessJson,
+  type LosslessJsonValue,
+} from "@/lib/lossless-json";
 
 import type {
   CodeGenOptions,
@@ -10,18 +18,14 @@ import type {
   XmlOptions,
 } from "./type";
 
-/**
- * 左侧输入区的数据类型选项。
- */
+/** 左侧输入区的数据类型选项。 */
 export const DATA_FORMAT_OPTIONS: FormatOption<DataFormat>[] = [
   { value: "json", label: "JSON" },
   { value: "yaml", label: "YAML" },
   { value: "xml", label: "XML" },
 ];
 
-/**
- * 右侧结果区的全部输出类型选项。
- */
+/** 右侧结果区的全部输出类型选项。 */
 export const OUTPUT_FORMAT_OPTIONS: FormatOption<OutputFormat>[] = [
   { value: "json", label: "JSON" },
   { value: "yaml", label: "YAML" },
@@ -34,6 +38,143 @@ export const OUTPUT_FORMAT_OPTIONS: FormatOption<OutputFormat>[] = [
 ];
 
 const DEFAULT_ROOT_NAME = "RootModel";
+const JSON_NUMBER_PATTERN = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+
+const JAVA_RESERVED_WORDS = new Set([
+  "abstract",
+  "assert",
+  "boolean",
+  "break",
+  "byte",
+  "case",
+  "catch",
+  "char",
+  "class",
+  "const",
+  "continue",
+  "default",
+  "do",
+  "double",
+  "else",
+  "enum",
+  "extends",
+  "final",
+  "finally",
+  "float",
+  "for",
+  "goto",
+  "if",
+  "implements",
+  "import",
+  "instanceof",
+  "int",
+  "interface",
+  "long",
+  "native",
+  "new",
+  "package",
+  "permits",
+  "private",
+  "protected",
+  "public",
+  "record",
+  "return",
+  "sealed",
+  "short",
+  "static",
+  "strictfp",
+  "super",
+  "switch",
+  "synchronized",
+  "this",
+  "throw",
+  "throws",
+  "transient",
+  "try",
+  "var",
+  "void",
+  "volatile",
+  "while",
+  "yield",
+  "false",
+  "null",
+  "true",
+]);
+
+const GO_RESERVED_WORDS = new Set([
+  "break",
+  "case",
+  "chan",
+  "const",
+  "continue",
+  "default",
+  "defer",
+  "else",
+  "fallthrough",
+  "for",
+  "func",
+  "go",
+  "goto",
+  "if",
+  "import",
+  "interface",
+  "map",
+  "package",
+  "range",
+  "return",
+  "select",
+  "struct",
+  "switch",
+  "type",
+  "var",
+]);
+
+const C_RESERVED_WORDS = new Set([
+  "auto",
+  "alignas",
+  "alignof",
+  "bool",
+  "constexpr",
+  "break",
+  "case",
+  "char",
+  "const",
+  "continue",
+  "default",
+  "do",
+  "double",
+  "else",
+  "enum",
+  "extern",
+  "false",
+  "float",
+  "for",
+  "goto",
+  "if",
+  "inline",
+  "int",
+  "long",
+  "nullptr",
+  "register",
+  "restrict",
+  "return",
+  "short",
+  "signed",
+  "sizeof",
+  "static",
+  "struct",
+  "switch",
+  "static_assert",
+  "typedef",
+  "typeof",
+  "union",
+  "unsigned",
+  "thread_local",
+  "true",
+  "void",
+  "volatile",
+  "while",
+]);
 
 export const DEFAULT_XML_OPTIONS: XmlOptions = {
   attributePrefix: "@",
@@ -53,212 +194,68 @@ export const DEFAULT_CODE_GEN_OPTIONS: CodeGenOptions = {
   },
 };
 
-/**
- * 结构推断后的属性定义。
- */
-type SchemaProperty = {
+interface SchemaProperty {
   name: string;
   schema: SchemaNode;
   optional: boolean;
-};
+}
 
-/**
- * 用于代码生成的简化结构描述。
- */
 type SchemaNode =
   | { kind: "string" }
-  | { kind: "number" }
+  | { kind: "number"; unsafeInteger: boolean }
   | { kind: "boolean" }
   | { kind: "null" }
   | { kind: "unknown" }
   | { kind: "array"; items: SchemaNode }
-  | { kind: "object"; properties: Record<string, SchemaProperty> }
+  | { kind: "object"; properties: SchemaProperty[] }
   | { kind: "union"; variants: SchemaNode[] };
 
+interface JavaGenerationContext {
+  classNames: Set<string>;
+  imports: Set<string>;
+}
+
+interface GoGenerationContext {
+  blocks: string[];
+  imports: Set<string>;
+  typeNames: Set<string>;
+}
+
+interface CGenerationContext {
+  blocks: string[];
+  flags: Set<string>;
+  typeNames: Set<string>;
+}
+
+class RawYamlNumber {
+  constructor(
+    readonly rawValue: string,
+    readonly jsonValue: string,
+  ) {}
+
+  toString() {
+    return this.rawValue;
+  }
+}
+
+const RAW_YAML_NUMBER_TAG = {
+  tag: "tag:yaml.org,2002:float",
+  default: true,
+  identify: (value) => value instanceof RawYamlNumber,
+  resolve: (value) => new RawYamlNumber(value, value),
+  stringify: ({ value }) => (value as RawYamlNumber).rawValue,
+} satisfies ScalarTag;
+
 function createSuccess(value: string): TransformResult {
-  return {
-    ok: true,
-    value,
-  };
+  return { ok: true, value };
 }
 
 function createFailure(error: string): TransformResult {
-  return {
-    ok: false,
-    error,
-  };
+  return { ok: false, error };
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function uniqueVariants(variants: SchemaNode[]) {
-  const map = new Map<string, SchemaNode>();
-
-  variants.forEach((item) => {
-    map.set(JSON.stringify(item), item);
-  });
-
-  return [...map.values()];
-}
-
-function mergeSchema(first: SchemaNode, second: SchemaNode): SchemaNode {
-  if (JSON.stringify(first) === JSON.stringify(second)) {
-    return first;
-  }
-
-  if (first.kind === "array" && second.kind === "array") {
-    return {
-      kind: "array",
-      items: mergeSchema(first.items, second.items),
-    };
-  }
-
-  if (first.kind === "object" && second.kind === "object") {
-    const allKeys = new Set([
-      ...Object.keys(first.properties),
-      ...Object.keys(second.properties),
-    ]);
-    const properties: Record<string, SchemaProperty> = {};
-
-    allKeys.forEach((key) => {
-      const firstProperty = first.properties[key];
-      const secondProperty = second.properties[key];
-
-      if (firstProperty && secondProperty) {
-        properties[key] = {
-          name: key,
-          optional: firstProperty.optional || secondProperty.optional,
-          schema: mergeSchema(firstProperty.schema, secondProperty.schema),
-        };
-        return;
-      }
-
-      const existingProperty = firstProperty ?? secondProperty;
-
-      if (!existingProperty) {
-        return;
-      }
-
-      properties[key] = {
-        ...existingProperty,
-        optional: true,
-      };
-    });
-
-    return {
-      kind: "object",
-      properties,
-    };
-  }
-
-  const variants = uniqueVariants(
-    first.kind === "union" ? [...first.variants] : [first],
-  );
-  const mergedVariants = uniqueVariants(
-    second.kind === "union"
-      ? [...variants, ...second.variants]
-      : [...variants, second],
-  );
-
-  return {
-    kind: "union",
-    variants: mergedVariants,
-  };
-}
-
-function inferSchema(value: unknown): SchemaNode {
-  if (value === null) {
-    return { kind: "null" };
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return {
-        kind: "array",
-        items: { kind: "unknown" },
-      };
-    }
-
-    return {
-      kind: "array",
-      items: value
-        .map((item) => inferSchema(item))
-        .reduce((previous, current) => mergeSchema(previous, current)),
-    };
-  }
-
-  if (isPlainObject(value)) {
-    const properties = Object.fromEntries(
-      Object.entries(value).map(([key, nestedValue]) => [
-        key,
-        {
-          name: key,
-          optional: false,
-          schema: inferSchema(nestedValue),
-        },
-      ]),
-    );
-
-    return {
-      kind: "object",
-      properties,
-    };
-  }
-
-  switch (typeof value) {
-    case "string":
-      return { kind: "string" };
-    case "number":
-      return { kind: "number" };
-    case "boolean":
-      return { kind: "boolean" };
-    default:
-      return { kind: "unknown" };
-  }
-}
-
-function toWords(value: string) {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[^a-zA-Z0-9]+/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function toPascalCase(value: string) {
-  const words = toWords(value);
-
-  if (words.length === 0) {
-    return DEFAULT_ROOT_NAME;
-  }
-
-  return words
-    .map((item) => item[0].toUpperCase() + item.slice(1).toLowerCase())
-    .join("");
-}
-
-function toCamelCase(value: string) {
-  const pascalName = toPascalCase(value);
-  return pascalName[0].toLowerCase() + pascalName.slice(1);
-}
-
-function safeRootName(value: string) {
-  return toPascalCase(value || DEFAULT_ROOT_NAME);
-}
-
-function isValidIdentifier(value: string) {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
-}
-
-function quoteObjectKeyIfNeeded(value: string) {
-  return isValidIdentifier(value) ? value : JSON.stringify(value);
 }
 
 function normalizePrimitiveText(value: string) {
@@ -273,6 +270,13 @@ function createXmlParser(xmlOptions: XmlOptions) {
     parseAttributeValue: true,
     parseTagValue: true,
     trimValues: false,
+    // XML 文本没有数字类型；保留数字文本才能避免 64 位 ID 被隐式舍入。
+    numberParseOptions: {
+      eNotation: true,
+      hex: true,
+      leadingZeros: true,
+      skipLike: /^[+-]?(?:\d|\.\d)/,
+    },
     isArray: () => xmlOptions.forceArrayForTags,
   });
 }
@@ -288,12 +292,117 @@ function createXmlBuilder(xmlOptions: XmlOptions, pretty: boolean) {
   });
 }
 
-function parseJsonText(value: string) {
-  return JSON.parse(value);
+function nativeValueToLossless(
+  value: unknown,
+  ancestors = new Set<object>(),
+): LosslessJsonValue {
+  if (value === null || typeof value === "undefined") {
+    return { kind: "null" };
+  }
+  if (typeof value === "string") {
+    return { kind: "string", value };
+  }
+  if (typeof value === "boolean") {
+    return { kind: "boolean", value };
+  }
+  if (value instanceof RawYamlNumber) {
+    return {
+      kind: "number",
+      rawValue: value.jsonValue,
+      sourceValue: value.rawValue,
+    };
+  }
+  if (typeof value === "bigint" || typeof value === "number") {
+    return { kind: "number", rawValue: String(value) };
+  }
+  if (value instanceof Date) {
+    return { kind: "string", value: value.toISOString() };
+  }
+
+  if (typeof value !== "object") {
+    return { kind: "string", value: String(value) };
+  }
+  if (ancestors.has(value)) {
+    throw new Error("数据包含循环引用，无法转换为树形结构");
+  }
+
+  const nextAncestors = new Set(ancestors).add(value);
+  if (Array.isArray(value)) {
+    return {
+      kind: "array",
+      items: value.map((item) => nativeValueToLossless(item, nextAncestors)),
+    };
+  }
+  if (value instanceof Map) {
+    return {
+      kind: "object",
+      entries: Array.from(value.entries(), ([key, nestedValue]) => [
+        String(key),
+        nativeValueToLossless(nestedValue, nextAncestors),
+      ]),
+    };
+  }
+  if (value instanceof Set) {
+    return {
+      kind: "array",
+      items: Array.from(value, (item) =>
+        nativeValueToLossless(item, nextAncestors),
+      ),
+    };
+  }
+
+  return {
+    kind: "object",
+    entries: Object.entries(value).map(([key, nestedValue]) => [
+      key,
+      nativeValueToLossless(nestedValue, nextAncestors),
+    ]),
+  };
+}
+
+function normalizeYamlNumber(rawValue: string, value: number | bigint) {
+  if (typeof value === "bigint") {
+    return String(value);
+  }
+
+  let normalized = rawValue.trim().replace(/^\+/, "");
+  normalized = normalized.replace(/^(-?)\./, "$10.");
+  normalized = normalized.replace(/\.(?=e|$)/i, ".0");
+  normalized = normalized.replace(
+    /^(-?)(\d+)(?=\.|e)/i,
+    (_match, sign: string, integerPart: string) =>
+      `${sign}${integerPart.replace(/^0+(?=\d)/, "")}`,
+  );
+  return normalized;
 }
 
 function parseYamlText(value: string) {
-  return YAML.parse(value);
+  const document = parseDocument(value, {
+    intAsBigInt: true,
+    keepSourceTokens: true,
+  });
+
+  if (document.errors.length > 0) {
+    throw document.errors[0];
+  }
+
+  visit(document, {
+    Scalar(_key, node) {
+      if (typeof node.value !== "number" && typeof node.value !== "bigint") {
+        return;
+      }
+
+      const sourceValue = node.source ?? String(node.value);
+      node.value = new RawYamlNumber(
+        sourceValue,
+        normalizeYamlNumber(sourceValue, node.value),
+      );
+    },
+  });
+
+  return nativeValueToLossless(
+    document.toJS({ mapAsMap: true, maxAliasCount: 100 }),
+  );
 }
 
 function parseXmlText(value: string, xmlOptions: XmlOptions) {
@@ -307,17 +416,7 @@ function parseXmlText(value: string, xmlOptions: XmlOptions) {
     throw new Error(errorMessage);
   }
 
-  return createXmlParser(xmlOptions).parse(value);
-}
-
-function wrapXmlRoot(value: unknown, rootName: string) {
-  if (isPlainObject(value) && Object.keys(value).length === 1) {
-    return value;
-  }
-
-  return {
-    [toCamelCase(rootName)]: value,
-  };
+  return nativeValueToLossless(createXmlParser(xmlOptions).parse(value));
 }
 
 function toDataValue(
@@ -327,7 +426,7 @@ function toDataValue(
 ) {
   switch (format) {
     case "json":
-      return parseJsonText(value);
+      return parseLosslessJson(value);
     case "yaml":
       return parseYamlText(value);
     case "xml":
@@ -335,25 +434,111 @@ function toDataValue(
   }
 }
 
-function formatJsonText(value: string) {
-  return JSON.stringify(parseJsonText(value), null, 2);
+function assertJsonCompatibleNumbers(value: LosslessJsonValue) {
+  if (value.kind === "number" && !JSON_NUMBER_PATTERN.test(value.rawValue)) {
+    throw new Error(`数字 ${value.rawValue} 无法表示为标准 JSON`);
+  }
+  if (value.kind === "array") {
+    value.items.forEach(assertJsonCompatibleNumbers);
+  }
+  if (value.kind === "object") {
+    value.entries.forEach(([, nestedValue]) =>
+      assertJsonCompatibleNumbers(nestedValue),
+    );
+  }
 }
 
-function formatYamlText(value: string) {
-  return YAML.stringify(parseYamlText(value), {
-    indent: 2,
-    lineWidth: 0,
-  });
+function losslessValueToYaml(value: LosslessJsonValue): unknown {
+  switch (value.kind) {
+    case "null":
+      return null;
+    case "boolean":
+    case "string":
+      return value.value;
+    case "number":
+      return new RawYamlNumber(
+        value.sourceValue ?? value.rawValue,
+        value.rawValue,
+      );
+    case "array":
+      return value.items.map(losslessValueToYaml);
+    case "object":
+      return new Map(
+        value.entries.map(([key, nestedValue]) => [
+          key,
+          losslessValueToYaml(nestedValue),
+        ]),
+      );
+  }
 }
 
-function formatXmlText(value: string, xmlOptions: XmlOptions) {
-  return createXmlBuilder(xmlOptions, true).build(
-    parseXmlText(value, xmlOptions),
+function losslessValueToXml(value: LosslessJsonValue): unknown {
+  switch (value.kind) {
+    case "null":
+      return null;
+    case "boolean":
+    case "string":
+      return value.value;
+    case "number":
+      return value.rawValue;
+    case "array":
+      return value.items.map(losslessValueToXml);
+    case "object": {
+      const result: Record<string, unknown> = Object.create(null) as Record<
+        string,
+        unknown
+      >;
+      value.entries.forEach(([key, nestedValue]) => {
+        result[key] = losslessValueToXml(nestedValue);
+      });
+      return result;
+    }
+  }
+}
+
+function wrapXmlRoot(value: LosslessJsonValue, rootName: string) {
+  if (value.kind === "object" && value.entries.length === 1) {
+    return value;
+  }
+
+  return {
+    kind: "object",
+    entries: [
+      [
+        createIdentifier(rootName || DEFAULT_ROOT_NAME, {
+          case: "camel",
+          fallback: "root",
+        }),
+        value,
+      ],
+    ],
+  } satisfies LosslessJsonValue;
+}
+
+function buildXmlOutput(
+  value: LosslessJsonValue,
+  rootName: string,
+  xmlOptions: XmlOptions,
+  pretty: boolean,
+) {
+  const output = createXmlBuilder(xmlOptions, pretty).build(
+    losslessValueToXml(wrapXmlRoot(value, rootName)),
   );
+  const validationResult = XMLValidator.validate(output);
+
+  if (validationResult !== true) {
+    const detail =
+      typeof validationResult === "object" && "err" in validationResult
+        ? validationResult.err.msg
+        : "标签名称不合法";
+    throw new Error(`无法生成有效 XML：${detail}`);
+  }
+
+  return output;
 }
 
 function buildDataOutput(
-  value: unknown,
+  value: LosslessJsonValue,
   format: DataFormat,
   rootName: string,
   xmlOptions: XmlOptions,
@@ -361,17 +546,148 @@ function buildDataOutput(
 ) {
   switch (format) {
     case "json":
-      return JSON.stringify(value, null, pretty ? 2 : 0);
+      assertJsonCompatibleNumbers(value);
+      return serializeLosslessJson(value, pretty ? 2 : 0);
     case "yaml":
-      return YAML.stringify(value, {
+      return YAML.stringify(losslessValueToYaml(value), {
+        customTags: [RAW_YAML_NUMBER_TAG],
         indent: 2,
         lineWidth: 0,
       });
     case "xml":
-      return createXmlBuilder(xmlOptions, pretty).build(
-        wrapXmlRoot(value, rootName),
-      );
+      return buildXmlOutput(value, rootName, xmlOptions, pretty);
   }
+}
+
+function getSchemaSignature(schema: SchemaNode) {
+  return JSON.stringify(schema);
+}
+
+function uniqueVariants(variants: SchemaNode[]) {
+  const variantsBySignature = new Map<string, SchemaNode>();
+  variants.forEach((variant) => {
+    variantsBySignature.set(getSchemaSignature(variant), variant);
+  });
+  return [...variantsBySignature.values()];
+}
+
+function mergeSchema(first: SchemaNode, second: SchemaNode): SchemaNode {
+  if (getSchemaSignature(first) === getSchemaSignature(second)) {
+    return first;
+  }
+  if (first.kind === "array" && second.kind === "array") {
+    return { kind: "array", items: mergeSchema(first.items, second.items) };
+  }
+  if (first.kind === "object" && second.kind === "object") {
+    const firstProperties = new Map(
+      first.properties.map((property) => [property.name, property]),
+    );
+    const secondProperties = new Map(
+      second.properties.map((property) => [property.name, property]),
+    );
+    const propertyNames = new Set([
+      ...firstProperties.keys(),
+      ...secondProperties.keys(),
+    ]);
+
+    return {
+      kind: "object",
+      properties: Array.from(propertyNames, (name) => {
+        const firstProperty = firstProperties.get(name);
+        const secondProperty = secondProperties.get(name);
+        if (firstProperty && secondProperty) {
+          return {
+            name,
+            optional: firstProperty.optional || secondProperty.optional,
+            schema: mergeSchema(firstProperty.schema, secondProperty.schema),
+          };
+        }
+
+        const property = firstProperty ?? secondProperty;
+        if (!property) {
+          throw new Error("结构属性合并失败");
+        }
+        return { ...property, optional: true };
+      }),
+    };
+  }
+
+  return {
+    kind: "union",
+    variants: uniqueVariants([
+      ...(first.kind === "union" ? first.variants : [first]),
+      ...(second.kind === "union" ? second.variants : [second]),
+    ]),
+  };
+}
+
+function inferSchema(value: LosslessJsonValue): SchemaNode {
+  switch (value.kind) {
+    case "null":
+      return { kind: "null" };
+    case "boolean":
+      return { kind: "boolean" };
+    case "string":
+      return { kind: "string" };
+    case "number":
+      return {
+        kind: "number",
+        unsafeInteger: isUnsafeLosslessInteger(value.rawValue),
+      };
+    case "array":
+      return {
+        kind: "array",
+        items:
+          value.items.length === 0
+            ? { kind: "unknown" }
+            : value.items
+                .map(inferSchema)
+                .reduce((previous, current) => mergeSchema(previous, current)),
+      };
+    case "object": {
+      const properties = new Map<string, SchemaProperty>();
+      value.entries.forEach(([name, nestedValue]) => {
+        properties.set(name, {
+          name,
+          optional: false,
+          schema: inferSchema(nestedValue),
+        });
+      });
+      return { kind: "object", properties: [...properties.values()] };
+    }
+  }
+}
+
+function containsUnsafeInteger(node: SchemaNode): boolean {
+  switch (node.kind) {
+    case "number":
+      return node.unsafeInteger;
+    case "array":
+      return containsUnsafeInteger(node.items);
+    case "object":
+      return node.properties.some((property) =>
+        containsUnsafeInteger(property.schema),
+      );
+    case "union":
+      return node.variants.some(containsUnsafeInteger);
+    default:
+      return false;
+  }
+}
+
+function createTypeName(value: string, usedIdentifiers?: Set<string>) {
+  const options = { case: "pascal", fallback: DEFAULT_ROOT_NAME } as const;
+  return usedIdentifiers
+    ? createUniqueIdentifier(value, usedIdentifiers, options)
+    : createIdentifier(value, options);
+}
+
+function isValidTypeScriptProperty(value: string) {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
+}
+
+function quoteObjectKeyIfNeeded(value: string) {
+  return isValidTypeScriptProperty(value) ? value : JSON.stringify(value);
 }
 
 function getTsTypeText(node: SchemaNode, indentLevel: number): string {
@@ -382,7 +698,7 @@ function getTsTypeText(node: SchemaNode, indentLevel: number): string {
     case "string":
       return "string";
     case "number":
-      return "number";
+      return node.unsafeInteger ? "string" : "number";
     case "boolean":
       return "boolean";
     case "null":
@@ -397,39 +713,36 @@ function getTsTypeText(node: SchemaNode, indentLevel: number): string {
     }
     case "union":
       return node.variants
-        .map((item) => getTsTypeText(item, indentLevel))
+        .map((variant) => getTsTypeText(variant, indentLevel))
         .join(" | ");
     case "object": {
-      const lines = Object.values(node.properties).map((property) => {
+      const lines = node.properties.map((property) => {
         const keyText = quoteObjectKeyIfNeeded(property.name);
         return `${nextIndent}${keyText}${property.optional ? "?" : ""}: ${getTsTypeText(property.schema, indentLevel + 1)};`;
       });
-
-      if (lines.length === 0) {
-        return "{\n" + `${nextIndent}[key: string]: unknown;` + `\n${indent}}`;
-      }
-
-      return `{\n${lines.join("\n")}\n${indent}}`;
+      return lines.length === 0
+        ? `{\n${nextIndent}[key: string]: unknown;\n${indent}}`
+        : `{\n${lines.join("\n")}\n${indent}}`;
     }
   }
 }
 
 function generateTypeScript(
-  value: unknown,
+  value: LosslessJsonValue,
   rootName: string,
   codeGenOptions: CodeGenOptions,
 ) {
   const schema = inferSchema(value);
-  const safeName = safeRootName(rootName);
-
-  if (
+  const safeName = createTypeName(rootName || DEFAULT_ROOT_NAME);
+  const declaration =
     schema.kind === "object" &&
     codeGenOptions.typescript.declarationStyle === "interface"
-  ) {
-    return `export interface ${safeName} ${getTsTypeText(schema, 0)}`;
-  }
+      ? `export interface ${safeName} ${getTsTypeText(schema, 0)}`
+      : `export type ${safeName} = ${getTsTypeText(schema, 0)};`;
 
-  return `export type ${safeName} = ${getTsTypeText(schema, 0)};`;
+  return containsUnsafeInteger(schema)
+    ? `// 超出安全整数范围的数字按字符串承载，请使用无损 JSON 解析器。\n${declaration}`
+    : declaration;
 }
 
 function getZodTypeText(node: SchemaNode, indentLevel: number): string {
@@ -440,7 +753,7 @@ function getZodTypeText(node: SchemaNode, indentLevel: number): string {
     case "string":
       return "z.string()";
     case "number":
-      return "z.number()";
+      return node.unsafeInteger ? "z.string()" : "z.number()";
     case "boolean":
       return "z.boolean()";
     case "null":
@@ -451,41 +764,35 @@ function getZodTypeText(node: SchemaNode, indentLevel: number): string {
       return `z.array(${getZodTypeText(node.items, indentLevel)})`;
     case "union":
       return `z.union([${node.variants
-        .map((item) => getZodTypeText(item, indentLevel))
+        .map((variant) => getZodTypeText(variant, indentLevel))
         .join(", ")}])`;
     case "object": {
-      const lines = Object.values(node.properties).map((property) => {
-        const keyText = quoteObjectKeyIfNeeded(property.name);
+      const lines = node.properties.map((property) => {
         const baseType = getZodTypeText(property.schema, indentLevel + 1);
-        const propertyType = property.optional
-          ? `${baseType}.optional()`
-          : baseType;
-        return `${nextIndent}${keyText}: ${propertyType},`;
+        return `${nextIndent}${quoteObjectKeyIfNeeded(property.name)}: ${property.optional ? `${baseType}.optional()` : baseType},`;
       });
-
-      if (lines.length === 0) {
-        return "z.object({})";
-      }
-
-      return `z.object({\n${lines.join("\n")}\n${indent}})`;
+      return lines.length === 0
+        ? "z.object({})"
+        : `z.object({\n${lines.join("\n")}\n${indent}})`;
     }
   }
 }
 
 function generateZod(
-  value: unknown,
+  value: LosslessJsonValue,
   rootName: string,
   codeGenOptions: CodeGenOptions,
 ) {
-  const safeName = safeRootName(rootName);
+  const safeName = createTypeName(rootName || DEFAULT_ROOT_NAME);
   const schema = inferSchema(value);
+  const lines = ['import { z } from "zod";', ""];
 
-  const lines = [
-    'import { z } from "zod";',
-    "",
-    `export const ${safeName}Schema = ${getZodTypeText(schema, 0)};`,
-  ];
-
+  if (containsUnsafeInteger(schema)) {
+    lines.push(
+      "// 超出安全整数范围的数字按字符串承载，请使用无损 JSON 解析器。",
+    );
+  }
+  lines.push(`export const ${safeName}Schema = ${getZodTypeText(schema, 0)};`);
   if (codeGenOptions.zod.includeInferType) {
     lines.push(
       "",
@@ -496,25 +803,52 @@ function generateZod(
   return lines.join("\n");
 }
 
+function createSourceKeyComment(
+  sourceName: string,
+  identifier: string,
+  indent: string,
+  style: "line" | "block" = "line",
+) {
+  if (sourceName === identifier) {
+    return "";
+  }
+
+  const content = `JSON key: ${JSON.stringify(sourceName)}`;
+  return style === "line"
+    ? `${indent}// ${content}\n`
+    : `${indent}/* ${content} */\n`;
+}
+
 function getJavaType(
   node: SchemaNode,
-  name: string,
-  blocks: string[],
-  imports: Set<string>,
+  suggestedName: string,
+  context: JavaGenerationContext,
+  nestedClasses: string[],
+  indentLevel: number,
 ): string {
   switch (node.kind) {
     case "string":
       return "String";
     case "number":
+      if (node.unsafeInteger) {
+        context.imports.add("import java.math.BigInteger;");
+        return "BigInteger";
+      }
       return "Double";
     case "boolean":
       return "Boolean";
     case "array":
-      imports.add("import java.util.List;");
-      return `List<${getJavaType(node.items, `${name}Item`, blocks, imports)}>`;
+      context.imports.add("import java.util.List;");
+      return `List<${getJavaType(node.items, `${suggestedName}Item`, context, nestedClasses, indentLevel)}>`;
     case "object": {
-      const typeName = safeRootName(name);
-      blocks.push(createJavaClass(node, typeName, blocks, imports));
+      const typeName = createUniqueIdentifier(
+        suggestedName,
+        context.classNames,
+        { case: "pascal", fallback: "NestedModel" },
+      );
+      nestedClasses.push(
+        createJavaClass(node, typeName, context, indentLevel, false),
+      );
       return typeName;
     }
     default:
@@ -525,60 +859,104 @@ function getJavaType(
 function createJavaClass(
   node: Extract<SchemaNode, { kind: "object" }>,
   className: string,
-  blocks: string[],
-  imports: Set<string>,
-): string {
-  const fields = Object.values(node.properties).map((property) => {
+  context: JavaGenerationContext,
+  indentLevel: number,
+  isRoot: boolean,
+) {
+  const indent = "  ".repeat(indentLevel);
+  const memberIndent = "  ".repeat(indentLevel + 1);
+  const fieldNames = new Set<string>();
+  const nestedClasses: string[] = [];
+  const fields = node.properties.map((property) => {
+    const fieldName = createUniqueIdentifier(property.name, fieldNames, {
+      case: "camel",
+      fallback: "field",
+      reservedWords: JAVA_RESERVED_WORDS,
+    });
     const fieldType = getJavaType(
       property.schema,
-      `${className}${toPascalCase(property.name)}`,
-      blocks,
-      imports,
+      `${className}${createTypeName(property.name)}`,
+      context,
+      nestedClasses,
+      indentLevel + 1,
     );
-    return `  public ${fieldType} ${toCamelCase(property.name)};`;
+    return `${createSourceKeyComment(property.name, fieldName, memberIndent)}${memberIndent}public ${fieldType} ${fieldName};`;
   });
+  const body = [
+    fields.length > 0 ? fields.join("\n") : `${memberIndent}// empty`,
+    ...nestedClasses,
+  ].join("\n\n");
 
-  return `public class ${className} {\n${fields.length > 0 ? fields.join("\n") : "  // empty"}\n}`;
+  return `${indent}${isRoot ? "public class" : "public static class"} ${className} {\n${body}\n${indent}}`;
 }
 
-function generateJava(value: unknown, rootName: string): string {
-  const schema = inferSchema(value);
-  const safeName = safeRootName(rootName);
-  const blocks: string[] = [];
-  const imports = new Set<string>();
+function generateJava(value: LosslessJsonValue, rootName: string) {
+  const inferredSchema = inferSchema(value);
+  const rootSchema: Extract<SchemaNode, { kind: "object" }> =
+    inferredSchema.kind === "object"
+      ? inferredSchema
+      : {
+          kind: "object",
+          properties: [
+            { name: "value", optional: false, schema: inferredSchema },
+          ],
+        };
+  const rootClassName = createIdentifier(rootName || DEFAULT_ROOT_NAME, {
+    case: "pascal",
+    fallback: DEFAULT_ROOT_NAME,
+    reservedWords: new Set([
+      "BigInteger",
+      "Boolean",
+      "Double",
+      "List",
+      "Object",
+      "String",
+    ]),
+  });
+  const context: JavaGenerationContext = {
+    classNames: new Set([rootClassName]),
+    imports: new Set(),
+  };
+  const rootClass = createJavaClass(
+    rootSchema,
+    rootClassName,
+    context,
+    0,
+    true,
+  );
+  const imports = [...context.imports].sort().join("\n");
 
-  if (schema.kind === "object") {
-    blocks.push(createJavaClass(schema, safeName, blocks, imports));
-  } else {
-    const typeText = getJavaType(schema, `${safeName}Value`, blocks, imports);
-    blocks.unshift(
-      `public class ${safeName} {\n  public ${typeText} value;\n}`,
-    );
-  }
-
-  return [...imports].sort().join("\n")
-    ? `${[...imports].sort().join("\n")}\n\n${uniqueBlocks(blocks).join("\n\n")}`
-    : uniqueBlocks(blocks).join("\n\n");
+  return imports ? `${imports}\n\n${rootClass}` : rootClass;
 }
 
 function getGoType(
   node: SchemaNode,
-  name: string,
-  blocks: string[],
+  suggestedName: string,
+  context: GoGenerationContext,
   codeGenOptions: CodeGenOptions,
 ): string {
   switch (node.kind) {
     case "string":
       return "string";
     case "number":
+      if (node.unsafeInteger) {
+        context.imports.add('import "encoding/json"');
+        return "json.Number";
+      }
       return "float64";
     case "boolean":
       return "bool";
     case "array":
-      return `[]${getGoType(node.items, `${name}Item`, blocks, codeGenOptions)}`;
+      return `[]${getGoType(node.items, `${suggestedName}Item`, context, codeGenOptions)}`;
     case "object": {
-      const typeName = safeRootName(name);
-      blocks.push(createGoStruct(node, typeName, blocks, codeGenOptions));
+      const typeName = createUniqueIdentifier(
+        suggestedName,
+        context.typeNames,
+        { case: "pascal", fallback: "NestedModel" },
+      );
+      context.blocks.push(
+        createGoStruct(node, typeName, context, codeGenOptions),
+      );
       return typeName;
     }
     default:
@@ -586,75 +964,90 @@ function getGoType(
   }
 }
 
+function createGoTag(name: string, optional: boolean) {
+  const tag = `json:${JSON.stringify(`${name}${optional ? ",omitempty" : ""}`)}`;
+  return tag.includes("`") ? JSON.stringify(tag) : `\`${tag}\``;
+}
+
 function createGoStruct(
   node: Extract<SchemaNode, { kind: "object" }>,
   structName: string,
-  blocks: string[],
+  context: GoGenerationContext,
   codeGenOptions: CodeGenOptions,
-): string {
-  const fields = Object.values(node.properties).map((property) => {
+) {
+  const fieldNames = new Set<string>();
+  const fields = node.properties.map((property) => {
+    const fieldName = createUniqueIdentifier(property.name, fieldNames, {
+      case: "pascal",
+      fallback: "Field",
+      reservedWords: GO_RESERVED_WORDS,
+    });
     const fieldType = getGoType(
       property.schema,
-      `${structName}${toPascalCase(property.name)}`,
-      blocks,
+      `${structName}${createTypeName(property.name)}`,
+      context,
       codeGenOptions,
     );
-    const tag = property.optional
-      ? `json:"${property.name},omitempty"`
-      : `json:"${property.name}"`;
-    const tagText = codeGenOptions.go.includeJsonTag ? ` \`${tag}\`` : "";
-    return `  ${safeRootName(property.name)} ${fieldType}${tagText}`;
+    const tag = codeGenOptions.go.includeJsonTag
+      ? ` ${createGoTag(property.name, property.optional)}`
+      : "";
+    return `${createSourceKeyComment(property.name, fieldName, "")}  ${fieldName} ${fieldType}${tag}`;
   });
 
   return `type ${structName} struct {\n${fields.length > 0 ? fields.join("\n") : "  // empty"}\n}`;
 }
 
 function generateGo(
-  value: unknown,
+  value: LosslessJsonValue,
   rootName: string,
   codeGenOptions: CodeGenOptions,
-): string {
-  const schema = inferSchema(value);
-  const safeName = safeRootName(rootName);
-  const blocks: string[] = [];
+) {
+  const inferredSchema = inferSchema(value);
+  const rootSchema: Extract<SchemaNode, { kind: "object" }> =
+    inferredSchema.kind === "object"
+      ? inferredSchema
+      : {
+          kind: "object",
+          properties: [
+            { name: "value", optional: false, schema: inferredSchema },
+          ],
+        };
+  const rootTypeName = createTypeName(rootName || DEFAULT_ROOT_NAME);
+  const context: GoGenerationContext = {
+    blocks: [],
+    imports: new Set(),
+    typeNames: new Set([rootTypeName]),
+  };
+  context.blocks.push(
+    createGoStruct(rootSchema, rootTypeName, context, codeGenOptions),
+  );
+  const imports = [...context.imports].sort().join("\n");
 
-  if (schema.kind === "object") {
-    blocks.push(createGoStruct(schema, safeName, blocks, codeGenOptions));
-  } else {
-    const valueType = getGoType(
-      schema,
-      `${safeName}Value`,
-      blocks,
-      codeGenOptions,
-    );
-    const tagText = codeGenOptions.go.includeJsonTag ? ' `json:"value"`' : "";
-    blocks.unshift(
-      `type ${safeName} struct {\n  Value ${valueType}${tagText}\n}`,
-    );
-  }
-
-  return `package model\n\n${uniqueBlocks(blocks).join("\n\n")}`;
+  return `package model\n${imports ? `\n${imports}\n` : ""}\n${context.blocks.join("\n\n")}`;
 }
 
 function getCType(
   node: SchemaNode,
-  name: string,
-  blocks: string[],
-  flags: Set<string>,
+  suggestedName: string,
+  context: CGenerationContext,
 ): string {
   switch (node.kind) {
     case "string":
       return "char*";
     case "number":
-      return "double";
+      return node.unsafeInteger ? "char*" : "double";
     case "boolean":
-      flags.add("bool");
+      context.flags.add("bool");
       return "bool";
     case "array":
       return "void*";
     case "object": {
-      const typeName = safeRootName(name);
-      blocks.push(createCStruct(node, typeName, blocks, flags));
+      const typeName = createUniqueIdentifier(
+        suggestedName,
+        context.typeNames,
+        { case: "pascal", fallback: "NestedModel" },
+      );
+      context.blocks.push(createCStruct(node, typeName, context));
       return `${typeName}*`;
     }
     default:
@@ -665,50 +1058,50 @@ function getCType(
 function createCStruct(
   node: Extract<SchemaNode, { kind: "object" }>,
   structName: string,
-  blocks: string[],
-  flags: Set<string>,
-): string {
-  const fields = Object.values(node.properties).map((property) => {
-    const fieldName = isValidIdentifier(toCamelCase(property.name))
-      ? toCamelCase(property.name)
-      : `field_${toCamelCase(property.name)}`;
+  context: CGenerationContext,
+) {
+  const fieldNames = new Set<string>();
+  const fields = node.properties.map((property) => {
+    const fieldName = createUniqueIdentifier(property.name, fieldNames, {
+      case: "camel",
+      fallback: "field",
+      reservedWords: C_RESERVED_WORDS,
+    });
     const fieldType = getCType(
       property.schema,
-      `${structName}${toPascalCase(property.name)}`,
-      blocks,
-      flags,
+      `${structName}${createTypeName(property.name)}`,
+      context,
     );
-    return `  ${fieldType} ${fieldName};`;
+    return `${createSourceKeyComment(property.name, fieldName, "  ")}  ${fieldType} ${fieldName};`;
   });
 
   return `typedef struct ${structName} {\n${fields.length > 0 ? fields.join("\n") : "  void* value;"}\n} ${structName};`;
 }
 
-function generateC(value: unknown, rootName: string): string {
-  const schema = inferSchema(value);
-  const safeName = safeRootName(rootName);
-  const blocks: string[] = [];
-  const flags = new Set<string>();
-
-  if (schema.kind === "object") {
-    blocks.push(createCStruct(schema, safeName, blocks, flags));
-  } else {
-    const fieldType = getCType(schema, `${safeName}Value`, blocks, flags);
-    blocks.unshift(
-      `typedef struct ${safeName} {\n  ${fieldType} value;\n} ${safeName};`,
-    );
-  }
-
+function generateC(value: LosslessJsonValue, rootName: string) {
+  const inferredSchema = inferSchema(value);
+  const rootSchema: Extract<SchemaNode, { kind: "object" }> =
+    inferredSchema.kind === "object"
+      ? inferredSchema
+      : {
+          kind: "object",
+          properties: [
+            { name: "value", optional: false, schema: inferredSchema },
+          ],
+        };
+  const rootTypeName = createTypeName(rootName || DEFAULT_ROOT_NAME);
+  const context: CGenerationContext = {
+    blocks: [],
+    flags: new Set(),
+    typeNames: new Set([rootTypeName]),
+  };
+  context.blocks.push(createCStruct(rootSchema, rootTypeName, context));
   const headers = [
-    flags.has("bool") ? "#include <stdbool.h>" : "",
+    context.flags.has("bool") ? "#include <stdbool.h>" : "",
     "#include <stddef.h>",
   ].filter(Boolean);
 
-  return `${headers.join("\n")}\n\n${uniqueBlocks(blocks).join("\n\n")}`;
-}
-
-function uniqueBlocks(blocks: string[]) {
-  return [...new Set(blocks)];
+  return `${headers.join("\n")}\n\n${context.blocks.join("\n\n")}`;
 }
 
 function simpleFormatCode(value: string) {
@@ -716,7 +1109,6 @@ function simpleFormatCode(value: string) {
     .split("\n")
     .map((line) => line.trim())
     .filter((line, index, array) => !(line === "" && array[index - 1] === ""));
-
   let indentLevel = 0;
 
   return lines
@@ -735,7 +1127,7 @@ function simpleFormatCode(value: string) {
 }
 
 function buildCodeOutput(
-  value: unknown,
+  value: LosslessJsonValue,
   format: Exclude<OutputFormat, DataFormat>,
   rootName: string,
   codeGenOptions: CodeGenOptions,
@@ -770,27 +1162,22 @@ export function transformLeftToRight(params: {
     xmlOptions,
     codeGenOptions,
   } = params;
-  const trimmedValue = leftValue.trim();
 
-  if (!trimmedValue) {
+  if (!leftValue.trim()) {
     return createSuccess("");
   }
 
   try {
     const parsedValue = toDataValue(leftFormat, leftValue, xmlOptions);
-
-    if (
-      rightFormat === "json" ||
-      rightFormat === "yaml" ||
-      rightFormat === "xml"
-    ) {
-      return createSuccess(
-        buildDataOutput(parsedValue, rightFormat, rootTypeName, xmlOptions),
-      );
-    }
-
     return createSuccess(
-      buildCodeOutput(parsedValue, rightFormat, rootTypeName, codeGenOptions),
+      rightFormat === "json" || rightFormat === "yaml" || rightFormat === "xml"
+        ? buildDataOutput(parsedValue, rightFormat, rootTypeName, xmlOptions)
+        : buildCodeOutput(
+            parsedValue,
+            rightFormat,
+            rootTypeName,
+            codeGenOptions,
+          ),
     );
   } catch (error) {
     return createFailure(getErrorMessage(error, "转换失败"));
@@ -802,20 +1189,35 @@ export function formatValueByOutputFormat(
   value: string,
   xmlOptions: XmlOptions = DEFAULT_XML_OPTIONS,
 ): TransformResult {
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) {
+  if (!value.trim()) {
     return createSuccess("");
   }
 
   try {
     switch (format) {
-      case "json":
-        return createSuccess(formatJsonText(value));
+      case "json": {
+        const parsedValue = parseLosslessJson(value);
+        assertJsonCompatibleNumbers(parsedValue);
+        return createSuccess(serializeLosslessJson(parsedValue, 2));
+      }
       case "yaml":
-        return createSuccess(formatYamlText(value));
+        return createSuccess(
+          buildDataOutput(
+            parseYamlText(value),
+            "yaml",
+            DEFAULT_ROOT_NAME,
+            xmlOptions,
+          ),
+        );
       case "xml":
-        return createSuccess(formatXmlText(value, xmlOptions));
+        return createSuccess(
+          buildXmlOutput(
+            parseXmlText(value, xmlOptions),
+            DEFAULT_ROOT_NAME,
+            xmlOptions,
+            true,
+          ),
+        );
       case "typescript":
       case "zod":
       case "java":
@@ -900,11 +1302,9 @@ export function detectDataFormatFromFileName(
   if (lowerFileName.endsWith(".json")) {
     return "json";
   }
-
   if (lowerFileName.endsWith(".yaml") || lowerFileName.endsWith(".yml")) {
     return "yaml";
   }
-
   if (lowerFileName.endsWith(".xml")) {
     return "xml";
   }

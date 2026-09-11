@@ -58,6 +58,7 @@ function useDataConverter() {
       }
 
       setLeftError(result.error);
+      setRightValue("");
     }, 250);
 
     return () => {

@@ -12,16 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { toast } from "lynote-ui/sonner";
 import { Textarea } from "lynote-ui/textarea";
 import Image from "next/image";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useBarcodeToolContext } from "../hooks/useBarcodeToolContext";
 import {
@@ -114,21 +114,17 @@ const ResultPanel: FC = () => {
         {config.mode === "generate" ? (
           <>
             {generateError && (
-              <Alert variant="destructive">
-                <AlertTitle>暂时无法生成条形码</AlertTitle>
-                <AlertDescription>{generateError}</AlertDescription>
-              </Alert>
+              <ToolErrorState
+                message={generateError}
+                title="暂时无法生成条形码"
+              />
             )}
 
             {!generateError && !generateResult && (
-              <Empty className="border border-dashed">
-                <EmptyHeader>
-                  <EmptyTitle>还没有可预览的条形码</EmptyTitle>
-                  <EmptyDescription>
-                    左侧选择码制并输入内容后，条形码会自动生成在这里。
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+              <ToolEmptyState
+                description="左侧选择码制并输入内容后，条形码会自动生成在这里。"
+                title="还没有可预览的条形码"
+              />
             )}
 
             {generateResult && (
@@ -267,27 +263,18 @@ const ResultPanel: FC = () => {
         ) : (
           <>
             {parseError && (
-              <Alert variant="destructive">
-                <AlertTitle>条形码解析失败</AlertTitle>
-                <AlertDescription>{parseError}</AlertDescription>
-              </Alert>
+              <ToolErrorState message={parseError} title="条形码解析失败" />
             )}
 
             {!parseResult && !parseLoading && !parseError && (
-              <Empty className="border border-dashed">
-                <EmptyHeader>
-                  <EmptyTitle>还没有解析结果</EmptyTitle>
-                  <EmptyDescription>
-                    左侧上传或粘贴条形码图片后，这里会展示识别出的码制和内容。
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+              <ToolEmptyState
+                description="左侧上传或粘贴条形码图片后，这里会展示识别出的码制和内容。"
+                title="还没有解析结果"
+              />
             )}
 
             {parseLoading && (
-              <div className="rounded-lg border border-dashed p-6 text-sm">
-                正在读取图片并尝试识别条形码，请稍候。
-              </div>
+              <ToolLoadingState message="正在读取图片并尝试识别条形码，请稍候。" />
             )}
 
             {parseResult && (

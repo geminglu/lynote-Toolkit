@@ -41,6 +41,10 @@ function isSuccessfulResponse(response) {
   return response && (response.ok || response.type === "opaque");
 }
 
+function isCacheableResponse(response) {
+  return isSuccessfulResponse(response) && response.status !== 206;
+}
+
 function isPathInScope(pathname) {
   const scopePathname = withBasePath("/");
 
@@ -59,37 +63,81 @@ async function trimCache(cache, maxEntries) {
   );
 }
 
+async function openCache(cacheName) {
+  try {
+    return await caches.open(cacheName);
+  } catch {
+    return null;
+  }
+}
+
+async function matchCachedResponse(cache, request) {
+  if (!cache) {
+    return undefined;
+  }
+
+  try {
+    return await cache.match(request);
+  } catch {
+    return undefined;
+  }
+}
+
+async function cacheResponse(cache, request, response, maxEntries) {
+  if (!cache) {
+    return;
+  }
+
+  try {
+    await cache.put(request, response.clone());
+
+    if (maxEntries) {
+      await trimCache(cache, maxEntries);
+    }
+  } catch {
+    // 缓存受配额和浏览器策略影响，失败时仍应返回已经取得的网络响应。
+  }
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
   event.waitUntil(
-    caches
-      .open(ASSET_CACHE_NAME)
-      .then((cache) =>
-        Promise.all(
-          PRECACHE_PATHS.map((pathname) =>
-            cache.add(withBasePath(pathname)).catch(() => undefined),
-          ),
+    (async () => {
+      const cache = await openCache(ASSET_CACHE_NAME);
+
+      if (!cache) {
+        return;
+      }
+
+      await Promise.all(
+        PRECACHE_PATHS.map((pathname) =>
+          cache.add(withBasePath(pathname)).catch(() => undefined),
         ),
-      ),
+      );
+    })(),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const cacheKeys = await caches.keys();
+      try {
+        const cacheKeys = await caches.keys();
 
-      await Promise.all(
-        cacheKeys
-          .filter(
-            (cacheKey) =>
-              LEGACY_CACHE_NAMES.includes(cacheKey) ||
-              (cacheKey.startsWith(CACHE_PREFIX) &&
-                !CURRENT_CACHE_NAMES.includes(cacheKey)),
-          )
-          .map((cacheKey) => caches.delete(cacheKey)),
-      );
+        await Promise.all(
+          cacheKeys
+            .filter(
+              (cacheKey) =>
+                LEGACY_CACHE_NAMES.includes(cacheKey) ||
+                (cacheKey.startsWith(CACHE_PREFIX) &&
+                  !CURRENT_CACHE_NAMES.includes(cacheKey)),
+            )
+            .map((cacheKey) => caches.delete(cacheKey).catch(() => false)),
+        );
+      } catch {
+        // 清理旧缓存失败不应阻止新版 Service Worker 接管页面。
+      }
 
       await self.clients.claim();
     })(),
@@ -97,18 +145,18 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
-
   try {
     const response = await fetch(new Request(request, { cache: "no-store" }));
 
-    if (isSuccessfulResponse(response)) {
-      await cache.put(request, response.clone());
+    if (isCacheableResponse(response)) {
+      const cache = await openCache(cacheName);
+      await cacheResponse(cache, request, response);
     }
 
     return response;
   } catch (error) {
-    const cachedResponse = await cache.match(request);
+    const cache = await openCache(cacheName);
+    const cachedResponse = await matchCachedResponse(cache, request);
 
     if (cachedResponse) {
       return cachedResponse;
@@ -119,8 +167,8 @@ async function networkFirst(request, cacheName) {
 }
 
 async function cacheFirst(request, cacheName, maxEntries) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
+  const cache = await openCache(cacheName);
+  const cachedResponse = await matchCachedResponse(cache, request);
 
   if (cachedResponse) {
     return cachedResponse;
@@ -128,12 +176,8 @@ async function cacheFirst(request, cacheName, maxEntries) {
 
   const response = await fetch(request);
 
-  if (isSuccessfulResponse(response)) {
-    await cache.put(request, response.clone());
-
-    if (maxEntries) {
-      await trimCache(cache, maxEntries);
-    }
+  if (isCacheableResponse(response)) {
+    await cacheResponse(cache, request, response, maxEntries);
   }
 
   return response;

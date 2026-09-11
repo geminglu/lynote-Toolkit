@@ -10,14 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { Textarea } from "lynote-ui/textarea";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useRsaToolContext } from "../hooks/useRsaToolContext";
 import { getKeyFormatLabel, getModeLabel } from "../utils";
@@ -49,28 +49,17 @@ const ResultPanel: FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>执行失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <ToolErrorState message={error} title="执行失败" />}
 
-        {!result && !loading && (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>还没有执行结果</EmptyTitle>
-              <EmptyDescription>
-                左侧选择操作模式并输入密钥后点击“执行”，结果仅保留在当前页面会话中。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        {!result && !loading && !error && (
+          <ToolEmptyState
+            description="左侧选择操作模式并输入密钥后点击“执行”，结果仅保留在当前页面会话中。"
+            title="还没有执行结果"
+          />
         )}
 
         {loading && (
-          <div className="rounded-lg border border-dashed p-6 text-sm">
-            正在调用浏览器的 Web Crypto API 处理 RSA 请求，请稍候。
-          </div>
+          <ToolLoadingState message="正在调用浏览器的 Web Crypto API 处理 RSA 请求，请稍候。" />
         )}
 
         {result && (

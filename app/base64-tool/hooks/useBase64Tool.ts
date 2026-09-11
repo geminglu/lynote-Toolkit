@@ -1,7 +1,9 @@
 "use client";
 
 import { toast } from "lynote-ui/sonner";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useRequestVersion } from "@/lib/use-request-version";
 
 import type {
   Base64TextDecoding,
@@ -38,28 +40,29 @@ function useBase64Tool() {
     bytes: null,
   });
   const [result, setResult] = useState<Base64ToolResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [processingLoading, setProcessingLoading] = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState("");
-  const requestIdRef = useRef(0);
+  const previewRequestVersion = useRequestVersion();
+  const fileReadRequestVersion = useRequestVersion();
+  const loading = processingLoading || fileLoading;
 
   useEffect(() => {
     const hasInput =
       config.inputMode === "file"
         ? Boolean(fileState.file && fileState.bytes)
         : Boolean(config.input.trim());
-    const requestId = requestIdRef.current + 1;
-
-    requestIdRef.current = requestId;
+    const version = previewRequestVersion.start();
 
     if (!hasInput) {
       const clearTimer = window.setTimeout(() => {
-        if (requestIdRef.current !== requestId) {
+        if (!previewRequestVersion.isCurrent(version)) {
           return;
         }
 
         setResult(null);
         setError("");
-        setLoading(false);
+        setProcessingLoading(false);
       }, 0);
 
       return () => {
@@ -68,22 +71,23 @@ function useBase64Tool() {
     }
 
     const loadingTimer = window.setTimeout(() => {
-      if (requestIdRef.current === requestId) {
-        setLoading(true);
+      if (previewRequestVersion.isCurrent(version)) {
+        setResult(null);
+        setProcessingLoading(true);
       }
     }, 0);
     const processTimer = window.setTimeout(() => {
       try {
         const nextResult = generateBase64ToolResult(config, fileState);
 
-        if (requestIdRef.current !== requestId) {
+        if (!previewRequestVersion.isCurrent(version)) {
           return;
         }
 
         setResult(nextResult);
         setError("");
       } catch (nextError) {
-        if (requestIdRef.current !== requestId) {
+        if (!previewRequestVersion.isCurrent(version)) {
           return;
         }
 
@@ -94,8 +98,8 @@ function useBase64Tool() {
             : "Base64 处理失败，请检查输入内容。",
         );
       } finally {
-        if (requestIdRef.current === requestId) {
-          setLoading(false);
+        if (previewRequestVersion.isCurrent(version)) {
+          setProcessingLoading(false);
         }
       }
     }, 120);
@@ -104,7 +108,12 @@ function useBase64Tool() {
       window.clearTimeout(loadingTimer);
       window.clearTimeout(processTimer);
     };
-  }, [config, fileState]);
+  }, [config, fileState, previewRequestVersion]);
+
+  const cancelFileRead = useCallback(() => {
+    fileReadRequestVersion.invalidate();
+    setFileLoading(false);
+  }, [fileReadRequestVersion]);
 
   const updateInput = useCallback((input: string) => {
     setConfig((previousConfig) => ({
@@ -113,29 +122,33 @@ function useBase64Tool() {
     }));
   }, []);
 
-  const updateInputMode = useCallback((inputMode: Base64ToolInputMode) => {
-    setConfig((previousConfig) => ({
-      ...previousConfig,
-      inputMode,
-      input:
-        inputMode === "file"
-          ? ""
-          : previousConfig.inputMode === "file"
+  const updateInputMode = useCallback(
+    (inputMode: Base64ToolInputMode) => {
+      cancelFileRead();
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        inputMode,
+        input:
+          inputMode === "file"
             ? ""
-            : previousConfig.input,
-      lineByLine:
-        inputMode === "file" || inputMode === "data-url"
-          ? false
-          : previousConfig.lineByLine,
-    }));
+            : previousConfig.inputMode === "file"
+              ? ""
+              : previousConfig.input,
+        lineByLine:
+          inputMode === "file" || inputMode === "data-url"
+            ? false
+            : previousConfig.lineByLine,
+      }));
 
-    if (inputMode !== "file") {
-      setFileState({
-        file: null,
-        bytes: null,
-      });
-    }
-  }, []);
+      if (inputMode !== "file") {
+        setFileState({
+          file: null,
+          bytes: null,
+        });
+      }
+    },
+    [cancelFileRead],
+  );
 
   const updateOutputMode = useCallback((outputMode: Base64ToolOutputMode) => {
     setConfig((previousConfig) => ({
@@ -203,6 +216,7 @@ function useBase64Tool() {
   }, [config.inputMode]);
 
   const clearInput = useCallback(() => {
+    cancelFileRead();
     setConfig((previousConfig) => ({
       ...previousConfig,
       input: "",
@@ -211,67 +225,95 @@ function useBase64Tool() {
       file: null,
       bytes: null,
     });
-  }, []);
+  }, [cancelFileRead]);
 
   const resetToDefaults = useCallback(() => {
+    cancelFileRead();
     setConfig(DEFAULT_BASE64_TOOL_CONFIG);
     setFileState({
       file: null,
       bytes: null,
     });
-  }, []);
+  }, [cancelFileRead]);
 
-  const setSelectedFile = useCallback(async (file: File | null) => {
-    if (!file) {
-      setFileState({
-        file: null,
-        bytes: null,
-      });
-      return;
-    }
+  const setSelectedFile = useCallback(
+    async (file: File | null) => {
+      const version = fileReadRequestVersion.start();
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      const nextError = `文件大小超出限制，当前仅支持不超过 ${formatFileSize(MAX_FILE_SIZE_BYTES)} 的单文件。`;
-
-      setError(nextError);
+      previewRequestVersion.invalidate();
+      setProcessingLoading(false);
       setResult(null);
-      toast.error(nextError);
-      return;
-    }
 
-    setLoading(true);
+      if (!file) {
+        setFileState({
+          file: null,
+          bytes: null,
+        });
+        setFileLoading(false);
+        setError("");
+        return;
+      }
 
-    try {
-      const bytes = await readFileAsBytes(file);
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        const nextError = `文件大小超出限制，当前仅支持不超过 ${formatFileSize(MAX_FILE_SIZE_BYTES)} 的单文件。`;
 
-      setFileState({
-        file,
-        bytes,
-      });
+        setFileState({
+          file: null,
+          bytes: null,
+        });
+        setFileLoading(false);
+        setError(nextError);
+        toast.error(nextError);
+        return;
+      }
+
+      setFileLoading(true);
       setError("");
-      toast.success("文件已导入，结果将在当前页面内存中即时更新。");
-    } catch (nextError) {
-      const message =
-        nextError instanceof Error ? nextError.message : "文件读取失败。";
 
-      setFileState({
-        file: null,
-        bytes: null,
-      });
-      setError(message);
-      setResult(null);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const bytes = await readFileAsBytes(file);
+
+        if (!fileReadRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        setFileState({
+          file,
+          bytes,
+        });
+        setError("");
+        toast.success("文件已导入，结果将在当前页面内存中即时更新。");
+      } catch (nextError) {
+        if (!fileReadRequestVersion.isCurrent(version)) {
+          return;
+        }
+
+        const message =
+          nextError instanceof Error ? nextError.message : "文件读取失败。";
+
+        setFileState({
+          file: null,
+          bytes: null,
+        });
+        setError(message);
+        setResult(null);
+        toast.error(message);
+      } finally {
+        if (fileReadRequestVersion.isCurrent(version)) {
+          setFileLoading(false);
+        }
+      }
+    },
+    [fileReadRequestVersion, previewRequestVersion],
+  );
 
   const clearSelectedFile = useCallback(() => {
+    cancelFileRead();
     setFileState({
       file: null,
       bytes: null,
     });
-  }, []);
+  }, [cancelFileRead]);
 
   const copyOutput = useCallback(
     async (outputId: string) => {

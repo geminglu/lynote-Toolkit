@@ -12,20 +12,20 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { toast } from "lynote-ui/sonner";
 import { Textarea } from "lynote-ui/textarea";
 import QRCodeStyling from "qr-code-styling";
 import type { FC } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useQrCodeToolContext } from "../hooks/useQrCodeToolContext";
 import {
@@ -48,6 +48,23 @@ function formatScannedAt(timestamp: number) {
   }).format(timestamp);
 }
 
+function getQrRenderErrorMessage(error: unknown) {
+  const detail =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+
+  if (/code length overflow/i.test(detail)) {
+    return "当前内容超过所选容错等级的二维码容量，请缩短内容或降低容错等级。";
+  }
+
+  return detail
+    ? `二维码渲染失败：${detail}`
+    : "二维码渲染失败，请检查内容和样式配置。";
+}
+
 /**
  * 二维码预览与结果面板。
  */
@@ -64,6 +81,10 @@ const ResultPanel: FC = () => {
   } = useQrCodeToolContext();
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
   const qrInstanceRef = useRef<QRCodeStyling | null>(null);
+  const [previewError, setPreviewError] = useState<{
+    options: object;
+    message: string;
+  } | null>(null);
   const previewOptions = useMemo(() => {
     if (!generateResult) {
       return null;
@@ -71,6 +92,9 @@ const ResultPanel: FC = () => {
 
     return createQrStylingOptions(config, generateResult.payload, logoState);
   }, [config, generateResult, logoState]);
+  const previewErrorMessage =
+    previewError?.options === previewOptions ? previewError.message : "";
+  const displayedGenerateError = generateError || previewErrorMessage;
 
   useEffect(() => {
     if (
@@ -82,17 +106,34 @@ const ResultPanel: FC = () => {
     }
 
     const container = qrContainerRef.current;
+    let qrInstance: QRCodeStyling;
 
-    // 页面预览时固定尺寸
-    const qrInstance = new QRCodeStyling({
-      ...previewOptions,
-      width: DEFAULT_QR_CODE_TOOL_CONFIG.size,
-      height: DEFAULT_QR_CODE_TOOL_CONFIG.size,
-    });
+    try {
+      // 页面预览时固定尺寸，导出仍使用用户配置的尺寸。
+      qrInstance = new QRCodeStyling({
+        ...previewOptions,
+        width: DEFAULT_QR_CODE_TOOL_CONFIG.size,
+        height: DEFAULT_QR_CODE_TOOL_CONFIG.size,
+      });
 
-    container.innerHTML = "";
-    qrInstance.append(container);
-    qrInstanceRef.current = qrInstance;
+      container.innerHTML = "";
+      qrInstance.append(container);
+      qrInstanceRef.current = qrInstance;
+    } catch (error) {
+      container.innerHTML = "";
+      qrInstanceRef.current = null;
+      const errorMessage = getQrRenderErrorMessage(error);
+      const updateErrorTimer = window.setTimeout(() => {
+        setPreviewError({
+          options: previewOptions,
+          message: errorMessage,
+        });
+      }, 0);
+
+      return () => {
+        window.clearTimeout(updateErrorTimer);
+      };
+    }
 
     return () => {
       if (qrInstanceRef.current === qrInstance) {
@@ -108,16 +149,23 @@ const ResultPanel: FC = () => {
       return;
     }
 
-    const qrInstance = new QRCodeStyling(previewOptions);
-    const blob = await qrInstance.getRawData(config.downloadFormat);
+    try {
+      const qrInstance = new QRCodeStyling(previewOptions);
+      const blob = await qrInstance.getRawData(config.downloadFormat);
 
-    if (!(blob instanceof Blob)) {
-      toast.error("当前浏览器未返回可下载的二维码数据。");
-      return;
+      if (!(blob instanceof Blob)) {
+        toast.error("当前浏览器未返回可下载的二维码数据。");
+        return;
+      }
+
+      downloadBlob(
+        blob,
+        `${createQrFileName(config)}.${config.downloadFormat}`,
+      );
+      toast.success(`二维码已下载为 ${config.downloadFormat.toUpperCase()}。`);
+    } catch (error) {
+      toast.error(getQrRenderErrorMessage(error));
     }
-
-    downloadBlob(blob, `${createQrFileName(config)}.${config.downloadFormat}`);
-    toast.success(`二维码已下载为 ${config.downloadFormat.toUpperCase()}。`);
   };
 
   const handleCopyImage = async () => {
@@ -125,16 +173,25 @@ const ResultPanel: FC = () => {
       return;
     }
 
-    const qrInstance = new QRCodeStyling(previewOptions);
-    const blob = await qrInstance.getRawData("png");
-
-    if (!(blob instanceof Blob)) {
-      toast.error("当前浏览器未返回可复制的二维码图片。");
+    if (!("ClipboardItem" in window) || !navigator.clipboard.write) {
+      toast.error("当前浏览器不支持直接复制图片，请改用下载。");
       return;
     }
 
-    if (!("ClipboardItem" in window) || !navigator.clipboard.write) {
-      toast.error("当前浏览器不支持直接复制图片，请改用下载。");
+    let blob: Blob;
+
+    try {
+      const qrInstance = new QRCodeStyling(previewOptions);
+      const rawData = await qrInstance.getRawData("png");
+
+      if (!(rawData instanceof Blob)) {
+        toast.error("当前浏览器未返回可复制的二维码图片。");
+        return;
+      }
+
+      blob = rawData;
+    } catch (error) {
+      toast.error(getQrRenderErrorMessage(error));
       return;
     }
 
@@ -162,7 +219,7 @@ const ResultPanel: FC = () => {
             : "展示二维码图片、识别结果、结构化字段和可直接执行的快捷动作。"}
         </CardDescription>
         <CardAction>
-          {generateResult && (
+          {generateResult && !previewErrorMessage && (
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => {
@@ -205,25 +262,21 @@ const ResultPanel: FC = () => {
       <CardContent className="space-y-4">
         {config.mode === "generate" ? (
           <>
-            {generateError && (
-              <Alert variant="destructive">
-                <AlertTitle>暂时无法生成二维码</AlertTitle>
-                <AlertDescription>{generateError}</AlertDescription>
-              </Alert>
+            {displayedGenerateError && (
+              <ToolErrorState
+                message={displayedGenerateError}
+                title="暂时无法生成二维码"
+              />
             )}
 
-            {!generateError && !generateResult && (
-              <Empty className="border border-dashed">
-                <EmptyHeader>
-                  <EmptyTitle>还没有可预览的二维码</EmptyTitle>
-                  <EmptyDescription>
-                    左侧补全内容配置后，二维码会自动生成在这里。
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+            {!displayedGenerateError && !generateResult && (
+              <ToolEmptyState
+                description="左侧补全内容配置后，二维码会自动生成在这里。"
+                title="还没有可预览的二维码"
+              />
             )}
 
-            {generateResult && (
+            {generateResult && !previewErrorMessage && (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-2">
@@ -244,30 +297,28 @@ const ResultPanel: FC = () => {
                 </div>
 
                 <div className="mt-4 grid gap-4">
-                  <Card>
-                    <div className="rounded-2xl bg-muted/20 p-4">
-                      <div className="text-sm font-medium">二维码预览</div>
-                      <div
-                        className={cn(
-                          "mt-3 flex min-h-90 items-center justify-center rounded-2xl p-4",
-                          config.transparentBackground
-                            ? "bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6)] bg-size-[24px_24px] bg-position-[0_0,12px_12px] dark:bg-[linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937),linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937)]"
-                            : "",
-                        )}
-                      >
-                        <div ref={qrContainerRef} />
-                      </div>
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        {config.transparentBackground
-                          ? "当前预览使用棋盘格底板，方便观察透明背景效果。"
-                          : "当前预览与下载样式保持一致。"}
-                      </p>
+                  <div className="rounded-lg border bg-muted/20 p-4">
+                    <div className="text-sm font-medium">二维码预览</div>
+                    <div
+                      className={cn(
+                        "mt-3 flex min-h-90 items-center justify-center rounded-2xl p-4",
+                        config.transparentBackground
+                          ? "bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%,#f3f4f6)] bg-size-[24px_24px] bg-position-[0_0,12px_12px] dark:bg-[linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937),linear-gradient(45deg,#1f2937_25%,transparent_25%,transparent_75%,#1f2937_75%,#1f2937)]"
+                          : "",
+                      )}
+                    >
+                      <div data-testid="qr-preview" ref={qrContainerRef} />
                     </div>
-                  </Card>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {config.transparentBackground
+                        ? "当前预览使用棋盘格底板，方便观察透明背景效果。"
+                        : "当前预览与下载样式保持一致。"}
+                    </p>
+                  </div>
 
                   <div className="space-y-4">
                     {generateResult.warnings.length > 0 && (
-                      <Alert className="bgmax-w-md max-w-md border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50">
+                      <Alert className="max-w-md border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50">
                         <AlertTriangleIcon />
                         <AlertTitle>可读性提示</AlertTitle>
                         <AlertDescription>
@@ -280,44 +331,36 @@ const ResultPanel: FC = () => {
                       </Alert>
                     )}
 
-                    <Card>
-                      <CardContent>
-                        <div className="text-sm font-medium">结构化内容</div>
-                        <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                          {generateResult.parsed.fields.map((field) => (
-                            <div key={`${field.label}-${field.value}`}>
-                              <div className="text-muted-foreground">
-                                {field.label}
-                              </div>
-                              <div className="break-all">{field.value}</div>
-                            </div>
-                          ))}
-                          <div>
+                    <div className="rounded-lg border p-4">
+                      <div className="text-sm font-medium">结构化内容</div>
+                      <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                        {generateResult.parsed.fields.map((field) => (
+                          <div key={`${field.label}-${field.value}`}>
                             <div className="text-muted-foreground">
-                              图片格式
+                              {field.label}
                             </div>
-                            <div>{config.downloadFormat.toUpperCase()}</div>
+                            <div className="break-all">{field.value}</div>
                           </div>
-                          <div>
-                            <div className="text-muted-foreground">
-                              Logo 状态
-                            </div>
-                            <div>{logoState ? logoState.name : "未添加"}</div>
-                          </div>
+                        ))}
+                        <div>
+                          <div className="text-muted-foreground">图片格式</div>
+                          <div>{config.downloadFormat.toUpperCase()}</div>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <div>
+                          <div className="text-muted-foreground">Logo 状态</div>
+                          <div>{logoState ? logoState.name : "未添加"}</div>
+                        </div>
+                      </div>
+                    </div>
 
-                    <Card>
-                      <CardContent>
-                        <div className="text-sm font-medium">原始编码内容</div>
-                        <Textarea
-                          className="mt-3 min-h-40 font-mono text-xs"
-                          readOnly
-                          value={generateResult.payload}
-                        />
-                      </CardContent>
-                    </Card>
+                    <div className="rounded-lg border p-4">
+                      <div className="text-sm font-medium">原始编码内容</div>
+                      <Textarea
+                        className="mt-3 min-h-40 font-mono text-xs"
+                        readOnly
+                        value={generateResult.payload}
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -326,27 +369,18 @@ const ResultPanel: FC = () => {
         ) : (
           <>
             {parseError && (
-              <Alert variant="destructive">
-                <AlertTitle>二维码解析失败</AlertTitle>
-                <AlertDescription>{parseError}</AlertDescription>
-              </Alert>
+              <ToolErrorState message={parseError} title="二维码解析失败" />
             )}
 
             {!parseResult && !parseLoading && !parseError && (
-              <Empty className="border border-dashed">
-                <EmptyHeader>
-                  <EmptyTitle>还没有解析结果</EmptyTitle>
-                  <EmptyDescription>
-                    左侧上传或粘贴二维码图片后，这里会展示识别出的内容。
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+              <ToolEmptyState
+                description="左侧上传或粘贴二维码图片后，这里会展示识别出的内容。"
+                title="还没有解析结果"
+              />
             )}
 
             {parseLoading && (
-              <div className="rounded-lg border border-dashed p-6 text-sm">
-                正在读取图片并尝试识别二维码，请稍候。
-              </div>
+              <ToolLoadingState message="正在读取图片并尝试识别二维码，请稍候。" />
             )}
 
             {parseResult && (

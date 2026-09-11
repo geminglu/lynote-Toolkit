@@ -10,14 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "lynote-ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "lynote-ui/empty";
 import { Textarea } from "lynote-ui/textarea";
 import type { FC } from "react";
+
+import {
+  ToolEmptyState,
+  ToolErrorState,
+  ToolLoadingState,
+} from "@/components/ToolState";
 
 import { useUrlToolContext } from "../hooks/useUrlToolContext";
 import { getDetectedInputTypeLabel, getOperationLabel } from "../utils";
@@ -48,28 +48,17 @@ const ResultPanel: FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>处理失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <ToolErrorState message={error} title="处理失败" />}
 
-        {!result && !loading && (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>还没有处理结果</EmptyTitle>
-              <EmptyDescription>
-                左侧确认输入模式和处理方式后点击执行，结果只会保留在当前页面会话中。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        {!result && !loading && !error && (
+          <ToolEmptyState
+            description="左侧确认输入模式和处理方式后点击执行，结果只会保留在当前页面会话中。"
+            title="还没有处理结果"
+          />
         )}
 
         {loading && (
-          <div className="rounded-lg border border-dashed p-6 text-sm">
-            正在处理当前 URL 内容，请稍候。
-          </div>
+          <ToolLoadingState message="正在处理当前 URL 内容，请稍候。" />
         )}
 
         {result && (

@@ -2,8 +2,12 @@
 
 import { cn } from "@/lib/utils";
 import { SidebarProvider, SidebarTrigger } from "lynote-ui/sidebar";
-import type { FC, ReactNode } from "react";
+import { useSyncExternalStore, type FC, type ReactNode } from "react";
 import WorkspaceSidebar from "./WorkspaceSidebar";
+
+const subscribeToClientReady = () => () => undefined;
+const getClientReadySnapshot = () => true;
+const getServerReadySnapshot = () => false;
 
 export type WorkspaceLayoutProps = {
   children: ReactNode;
@@ -32,11 +36,18 @@ const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
   headerClassName,
   footerClassName,
 }) => {
+  const clientReady = useSyncExternalStore(
+    subscribeToClientReady,
+    getClientReadySnapshot,
+    getServerReadySnapshot,
+  );
+
   return (
     <SidebarProvider className={cn("", className)}>
       {sidebar && <WorkspaceSidebar>{sidebar}</WorkspaceSidebar>}
 
       <main
+        data-client-ready={clientReady ? "true" : "false"}
         className={cn(
           "mx-auto flex max-w-[1400px] min-w-0 flex-1 flex-col overflow-y-auto",
           mainClassName,

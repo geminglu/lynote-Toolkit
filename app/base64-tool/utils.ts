@@ -635,6 +635,8 @@ function executeLineByLine(
     "data-url",
   ];
   const renderedByMode = new Map<Base64ToolOutputMode, string[]>();
+  const failedOutputModes = new Set<Base64ToolOutputMode>();
+  const warnings = ["当前结果来自逐行处理模式，字节预览仅针对单段模式提供。"];
   let totalBytes = 0;
 
   outputModes.forEach((mode) => {
@@ -660,6 +662,10 @@ function executeLineByLine(
     totalBytes += source.bytes.length;
 
     outputModes.forEach((mode) => {
+      if (failedOutputModes.has(mode)) {
+        return;
+      }
+
       try {
         const rendered = renderOutputByMode(
           mode,
@@ -670,31 +676,38 @@ function executeLineByLine(
 
         renderedByMode.get(mode)?.push(rendered.value);
       } catch (error) {
-        throw new Error(
-          error instanceof Error
-            ? `第 ${index + 1} 行处理失败：${error.message}`
-            : `第 ${index + 1} 行处理失败。`,
+        const message =
+          error instanceof Error ? error.message : "当前输出模式生成失败。";
+
+        if (mode === config.outputMode) {
+          throw new Error(`第 ${index + 1} 行处理失败：${message}`);
+        }
+
+        failedOutputModes.add(mode);
+        warnings.push(
+          `附加输出 ${getOutputModeLabel(mode)} 在第 ${index + 1} 行生成失败，已跳过该视图：${message}`,
         );
       }
     });
   });
 
   const timestamp = Date.now();
-  const outputs = outputModes.map((mode) =>
-    createOutputItem(
-      renderOutputByMode(
-        mode,
-        new Uint8Array(0),
-        config,
-        config.dataUrlMimeType || "text/plain",
-      ),
-      timestamp,
-    ),
-  );
+  const outputs = outputModes
+    .filter((mode) => !failedOutputModes.has(mode))
+    .map((mode) => {
+      const output = createOutputItem(
+        renderOutputByMode(
+          mode,
+          new Uint8Array(0),
+          config,
+          config.dataUrlMimeType || "text/plain",
+        ),
+        timestamp,
+      );
 
-  outputs.forEach((output, index) => {
-    output.value = renderedByMode.get(outputModes[index])?.join("\n") ?? "";
-  });
+      output.value = renderedByMode.get(mode)?.join("\n") ?? "";
+      return output;
+    });
 
   const primaryOutputId = `output-${config.outputMode}`;
 
@@ -705,20 +718,22 @@ function executeLineByLine(
     outputMode: config.outputMode,
     primaryOutputId,
     outputs,
-    warnings: ["当前结果来自逐行处理模式，字节预览仅针对单段模式提供。"],
+    warnings,
     byteLength: totalBytes,
     lineCount: lines.length,
     containsPadding:
       outputs
         .find((item) => item.id === "output-base64")
         ?.value.includes("=") ?? false,
-    canDecodeText: true,
+    canDecodeText: !failedOutputModes.has("text"),
     detectedBinaryKind: "逐行处理结果",
     normalizedBase64:
       outputs.find((item) => item.id === "output-base64")?.value ?? "",
     normalizedBase64Url:
       outputs.find((item) => item.id === "output-base64url")?.value ?? "",
-    textPreview: outputs.find((item) => item.id === "output-text")?.value ?? "",
+    textPreview:
+      outputs.find((item) => item.id === "output-text")?.value ??
+      EMPTY_TEXT_PREVIEW,
     hexPreview: outputs.find((item) => item.id === "output-hex")?.value ?? "",
     asciiPreview: "",
     bytePreviewRows: [],

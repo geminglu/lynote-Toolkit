@@ -333,9 +333,7 @@ function buildMailToUrl(config: QrCodeToolConfig) {
 }
 
 function buildWifiPayload(config: QrCodeToolConfig) {
-  const ssid = config.wifiSsid.trim();
-
-  if (!ssid) {
+  if (!config.wifiSsid.trim()) {
     throw new Error("请输入 Wi-Fi 名称（SSID）。");
   }
 
@@ -343,10 +341,13 @@ function buildWifiPayload(config: QrCodeToolConfig) {
     throw new Error("当前 Wi-Fi 加密方式需要填写密码。");
   }
 
-  const fields = [`T:${config.wifiEncryption}`, `S:${escapeWifiValue(ssid)}`];
+  const fields = [
+    `T:${config.wifiEncryption}`,
+    `S:${escapeWifiValue(config.wifiSsid)}`,
+  ];
 
   if (config.wifiEncryption !== "nopass") {
-    fields.push(`P:${escapeWifiValue(config.wifiPassword.trim())}`);
+    fields.push(`P:${escapeWifiValue(config.wifiPassword)}`);
   }
 
   if (config.wifiHidden) {

@@ -344,12 +344,12 @@ export function createPageMetadata({
     description,
     keywords,
     alternates: {
-      canonical: pathname,
+      canonical: absoluteUrl(pathname),
     },
     openGraph: {
       title: absoluteTitle ?? title ?? SITE_TITLE,
       description,
-      url: pathname,
+      url: absoluteUrl(pathname),
       siteName: SITE_NAME,
       locale: "zh_CN",
       type: "website",

@@ -3,6 +3,8 @@
 import { toast } from "lynote-ui/sonner";
 import { useCallback, useMemo, useState } from "react";
 
+import { useRequestVersion } from "@/lib/use-request-version";
+
 import type {
   ApiKeyCharset,
   ApiKeyEncoding,
@@ -63,77 +65,94 @@ function useKeyGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSensitiveData, setShowSensitiveData] = useState(false);
+  const requestVersion = useRequestVersion();
 
-  const updateType = useCallback((type: KeyGeneratorType) => {
-    setConfig(getDefaultConfigByType(type));
+  const clearTransientState = useCallback(() => {
+    requestVersion.invalidate();
     setResult(null);
     setError("");
-    setShowSensitiveData(false);
-  }, []);
+    setLoading(false);
+  }, [requestVersion]);
+
+  const updateType = useCallback(
+    (type: KeyGeneratorType) => {
+      setConfig(getDefaultConfigByType(type));
+      clearTransientState();
+      setShowSensitiveData(false);
+    },
+    [clearTransientState],
+  );
 
   const updateEncoding = useCallback(
     (encoding: ApiKeyEncoding | SecretEncoding | RsaEncoding) => {
       setConfig((previousConfig) =>
         updateEncodingInConfig(previousConfig, encoding),
       );
-      setResult(null);
-      setError("");
+      clearTransientState();
       setShowSensitiveData(false);
     },
-    [],
+    [clearTransientState],
   );
 
-  const updateApiLength = useCallback((length: number) => {
-    setConfig((previousConfig) =>
-      previousConfig.type === "api-key"
-        ? {
-            ...previousConfig,
-            length,
-          }
-        : previousConfig,
-    );
-    setResult(null);
-    setError("");
-  }, []);
+  const updateApiLength = useCallback(
+    (length: number) => {
+      setConfig((previousConfig) =>
+        previousConfig.type === "api-key"
+          ? {
+              ...previousConfig,
+              length,
+            }
+          : previousConfig,
+      );
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const updateApiCharset = useCallback((charset: ApiKeyCharset) => {
-    setConfig((previousConfig) =>
-      previousConfig.type === "api-key"
-        ? {
-            ...previousConfig,
-            charset,
-          }
-        : previousConfig,
-    );
-    setResult(null);
-    setError("");
-  }, []);
+  const updateApiCharset = useCallback(
+    (charset: ApiKeyCharset) => {
+      setConfig((previousConfig) =>
+        previousConfig.type === "api-key"
+          ? {
+              ...previousConfig,
+              charset,
+            }
+          : previousConfig,
+      );
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const updateJwtBytes = useCallback((bytes: number) => {
-    setConfig((previousConfig) =>
-      previousConfig.type === "jwt-secret"
-        ? {
-            ...previousConfig,
-            bytes,
-          }
-        : previousConfig,
-    );
-    setResult(null);
-    setError("");
-  }, []);
+  const updateJwtBytes = useCallback(
+    (bytes: number) => {
+      setConfig((previousConfig) =>
+        previousConfig.type === "jwt-secret"
+          ? {
+              ...previousConfig,
+              bytes,
+            }
+          : previousConfig,
+      );
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
-  const updateHmacBytes = useCallback((bytes: number) => {
-    setConfig((previousConfig) =>
-      previousConfig.type === "hmac-sha256"
-        ? {
-            ...previousConfig,
-            bytes,
-          }
-        : previousConfig,
-    );
-    setResult(null);
-    setError("");
-  }, []);
+  const updateHmacBytes = useCallback(
+    (bytes: number) => {
+      setConfig((previousConfig) =>
+        previousConfig.type === "hmac-sha256"
+          ? {
+              ...previousConfig,
+              bytes,
+            }
+          : previousConfig,
+      );
+      clearTransientState();
+    },
+    [clearTransientState],
+  );
 
   const updateRsaModulusLength = useCallback(
     (modulusLength: 2048 | 3072 | 4096) => {
@@ -145,47 +164,60 @@ function useKeyGenerator() {
             }
           : previousConfig,
       );
-      setResult(null);
-      setError("");
+      clearTransientState();
     },
-    [],
+    [clearTransientState],
   );
 
   const resetToDefaults = useCallback(() => {
     setConfig(DEFAULT_KEY_GENERATOR_CONFIG);
-    setResult(null);
-    setError("");
+    clearTransientState();
     setShowSensitiveData(false);
-  }, []);
+  }, [clearTransientState]);
 
   const clearResult = useCallback(() => {
-    setResult(null);
-    setError("");
+    clearTransientState();
     setShowSensitiveData(false);
-  }, []);
+  }, [clearTransientState]);
 
   const toggleSensitiveData = useCallback((checked: boolean) => {
     setShowSensitiveData(checked);
   }, []);
 
   const generate = useCallback(async () => {
+    const configSnapshot = config;
+    const version = requestVersion.start();
+
     if (!crypto?.subtle) {
       const nextError = "当前浏览器不支持 Web Crypto API，无法生成密钥。";
+
       setError(nextError);
+      setResult(null);
+      setLoading(false);
       toast.error(nextError);
       return;
     }
 
+    setResult(null);
+    setShowSensitiveData(false);
     setLoading(true);
     setError("");
 
     try {
-      const nextResult = await generateKeyResult(config);
+      const nextResult = await generateKeyResult(configSnapshot);
+
+      if (!requestVersion.isCurrent(version)) {
+        return;
+      }
 
       setResult(nextResult);
       setShowSensitiveData(false);
       toast.success("密钥已生成，当前结果仅保留在本页面内存中。");
     } catch (generationError) {
+      if (!requestVersion.isCurrent(version)) {
+        return;
+      }
+
       const nextError =
         generationError instanceof Error
           ? generationError.message
@@ -195,9 +227,11 @@ function useKeyGenerator() {
       setResult(null);
       toast.error(nextError);
     } finally {
-      setLoading(false);
+      if (requestVersion.isCurrent(version)) {
+        setLoading(false);
+      }
     }
-  }, [config]);
+  }, [config, requestVersion]);
 
   const copyOutput = useCallback(
     async (outputId: string) => {
